@@ -16,7 +16,7 @@ function b64ToAb(b64) {
 }
 
 export class DirectSocket {
-  constructor({ params, store, gemini }) {
+  constructor({ params, store, ai }) {
     this.readyState = 0;
     this.binaryType = 'arraybuffer';
     this.onmessage = null;
@@ -27,8 +27,8 @@ export class DirectSocket {
     this.bridge = new TutorBridge({
       params,
       store,
-      connectLive: gemini.connectLive,
-      genJSON: gemini.genJSON,
+      connectLive: ai.connectLive,
+      genJSON: ai.genJSON,
       log: (...a) => { if (localStorage.getItem('pesu-debug')) console.log('[pesu]', ...a); },
       out: {
         json: (obj) => emit(JSON.stringify(obj)),

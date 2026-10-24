@@ -10,10 +10,23 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const lessonById = (id) => LESSONS.find((l) => l.id === Number(id));
 const TUTOR = { priya: { name: 'Priya', title: 'Priya miss' }, arun: { name: 'Arun', title: 'Arun sir' } };
 const VOICES = {
-  priya: [['', 'Default (Warm)'], ['Vindemiatrix', 'Gentle'], ['Achernar', 'Soft'], ['Aoede', 'Breezy']],
-  arun: [['', 'Default (Friendly)'], ['Umbriel', 'Easy-going'], ['Iapetus', 'Clear'], ['Algieba', 'Smooth']],
+  gemini: {
+    priya: [['', 'Default (Warm)'], ['Vindemiatrix', 'Gentle'], ['Achernar', 'Soft'], ['Aoede', 'Breezy']],
+    arun: [['', 'Default (Friendly)'], ['Umbriel', 'Easy-going'], ['Iapetus', 'Clear'], ['Algieba', 'Smooth']],
+  },
+  openai: {
+    priya: [['', 'Default (Warm)'], ['coral', 'Bright'], ['sage', 'Calm'], ['shimmer', 'Soft']],
+    arun: [['', 'Default (Friendly)'], ['ash', 'Clear'], ['verse', 'Lively'], ['echo', 'Smooth']],
+  },
 };
+const isOpenAIKey = (k) => /^sk-/.test(String(k || '').trim());
+const ERR_OPENAI = {
+  quota: 'OpenAI limit-a thaandiyaachu. Oru nimisham kazhichu thirumba try pannunga.',
+  region: 'Indha OpenAI service unga area-la allow aagala.',
+};
+const errMsg = (kind, provider = S && S.provider) => (provider === 'openai' && ERR_OPENAI[kind]) || ERR[kind] || ERR.unknown;
 const ERR = {
+  billing: 'OpenAI account-la credit (balance) illa. platform.openai.com/settings/organization/billing-la credit add pannunga ($5 podhum), apram thirumba try pannunga.',
   nokey: 'API key innum set pannala. Settings-la key podunga.',
   badkey: 'API key work aagala. Settings-la pudhu key podunga.',
   quota: 'Indraiya free limit mudinjiduchu. Konja neram kazhichu (illana naalaiku) thirumba try pannunga.',
@@ -154,17 +167,18 @@ function viewSetup() {
   return `<main class="narrow stack">
     <div class="brand big"><span class="logo" aria-hidden="true"></span>Pesu English</div>
     <section class="card stack">
-      <div><span class="label">Oru thadava setup</span><h1>Free Gemini API key podunga</h1></div>
-      <p class="muted">Teacher-oda voice-um moolaiyum Google Gemini Live. Adhukku oru free API key venum. Oru thadava pannaa podhum.</p>
+      <div><span class="label">Oru thadava setup</span><h1>OpenAI API key podunga</h1></div>
+      <p class="muted">Teacher-oda voice-um moolaiyum OpenAI Realtime. Oru thadava key podunga, podhum.</p>
       <ol class="steps">
-        <li><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> open pannunga (Google account-la login).</li>
-        <li><b>Create API key</b> click pannunga, key-a copy pannunga.</li>
+        <li><a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com/api-keys</a> open pannunga (OpenAI account-la login).</li>
+        <li><b>Create new secret key</b> click panni key-a copy pannunga (sk-… nu aarambikkum).</li>
+        <li>Account-la credit irukkanum (Settings &gt; Billing). Use pannura nimishathukku mattum dhaan charge.</li>
         <li>Keezha paste panni <b>Save &amp; check</b> pannunga.</li>
       </ol>
       <label class="label" for="key-in">API key</label>
-      <div class="row"><input id="key-in" type="password" autocomplete="off" spellcheck="false" placeholder="AIza…" class="grow"><button class="btn" data-act="savekey" id="key-btn">Save &amp; check</button></div>
+      <div class="row"><input id="key-in" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…" class="grow"><button class="btn" data-act="savekey" id="key-btn">Save &amp; check</button></div>
       <p class="xs muted" id="key-msg"></p>
-      <p class="xs muted">${S.mode === 'web' ? 'Key indha phone / browser-la mattum save aagum; Google-ku mattum dhaan pogum.' : `Key indha computer-la mattum save aagum (${esc(S.dataDir)}).`} Free plan-la, Google indha pechu data-va avanga service improve panna use pannalaam.</p>
+      <p class="xs muted">${S.mode === 'web' ? 'Key indha phone / browser-la mattum save aagum; OpenAI-ku mattum dhaan pogum.' : `Key indha computer-la mattum save aagum (${esc(S.dataDir)}).`} Free Gemini key (AIza…) irundhaalum idhula podalaam — app thaane kandupidikkum.</p>
     </section>
   </main>`;
 }
@@ -336,7 +350,7 @@ async function startCall(mode, day, scene) {
   if (avatar) { avatar.destroy(); avatar = null; }
   $('#app').innerHTML = viewCall(mode, day, scene);
   mountAvatar('#call-av', 'idle');
-  const c = new Call({ mode, day, scene, settings: S.settings, socketFactory: (q) => backend.liveSocket(q) });
+  const c = new Call({ mode, day, scene, settings: S.settings, socketFactory: (q) => backend.liveSocket(q), inRate: S.provider === 'openai' ? 24000 : 16000 });
   keepAwake(true);
   call = c;
   callCtx = { mode, day, scene, lines: [], me: null, tu: null, started: 0, raf: 0, cam: null, muted: false, done: false };
@@ -370,8 +384,13 @@ function wireCall(c) {
     if (e.detail.s === 'ready' && !callCtx.started) callCtx.started = Date.now();
   });
   c.addEventListener('in', (e) => {
-    if (!callCtx.me) { callCtx.me = { who: 'me', text: '' }; callCtx.lines.push(callCtx.me); }
-    callCtx.me.text += e.detail;
+    if (!callCtx.me) {
+      callCtx.me = { who: 'me', text: '' };
+      // his words arrived after the tutor started answering: show them above that answer
+      const i = e.detail.before && callCtx.tu ? callCtx.lines.indexOf(callCtx.tu) : -1;
+      if (i >= 0) callCtx.lines.splice(i, 0, callCtx.me); else callCtx.lines.push(callCtx.me);
+    }
+    callCtx.me.text += e.detail.text;
     drawCaptions();
   });
   c.addEventListener('userDone', (e) => {
@@ -437,7 +456,7 @@ function showCallError(kind, detail) {
   const box = $('#call-err');
   if (!box) return;
   box.hidden = false;
-  box.innerHTML = `<b>${esc(ERR[kind] || ERR.unknown)}</b>${detail && kind === 'unknown' ? `<div class="xs muted">${esc(detail)}</div>` : ''}
+  box.innerHTML = `<b>${esc(errMsg(kind))}</b>${detail && kind === 'unknown' ? `<div class="xs muted">${esc(detail)}</div>` : ''}
     <div class="row"><button class="btn sm" data-act="retry-call">Thirumba try pannunga</button>${kind === 'badkey' || kind === 'nokey' ? '<button class="btn quiet sm" data-act="go" data-to="settings">Settings</button>' : ''}<button class="btn quiet sm" data-act="leave-call">Home</button></div>`;
   if (avatar) avatar.setState('idle');
   const st = $('#status');
@@ -550,7 +569,9 @@ function seg(key, opts) {
 }
 function viewSettings() {
   const st = S.settings;
-  const voices = VOICES[st.tutor] || VOICES.priya;
+  const pv = VOICES[S.provider] || VOICES.gemini;
+  const voices = pv[st.tutor] || pv.priya;
+  const curVoice = voices.some(([v]) => v === st.voice) ? st.voice : '';
   return `<main class="narrow stack">
     <h1>Settings</h1>
     <section class="card stack">
@@ -559,7 +580,7 @@ function viewSettings() {
         <div class="grow"><label class="label" for="s-city">Ooru</label><input id="s-city" type="text" value="${esc(S.profile.city)}" autocomplete="off"></div>
       </div>
       <div><span class="label">Teacher</span>${seg('tutor', [['priya', 'Priya miss'], ['arun', 'Arun sir']])}</div>
-      <div><span class="label">Voice</span><div class="seg wrapseg" role="group">${voices.map(([v, l]) => `<button type="button" data-act="set" data-k="voice" data-v="${v}" aria-pressed="${(st.voice || '') === v}">${esc(l)}</button>`).join('')}</div></div>
+      <div><span class="label">Voice</span><div class="seg wrapseg" role="group">${voices.map(([v, l]) => `<button type="button" data-act="set" data-k="voice" data-v="${v}" aria-pressed="${curVoice === v}">${esc(l)}</button>`).join('')}</div></div>
       <div><span class="label">Teacher pesura speed</span>${seg('speed', [['normal', 'Normal'], ['slow', 'Mella']])}</div>
       <div><span class="label">Neenga yosichu pesa evlo time wait pannanum</span>${seg('patience', [['fast', 'Konjam'], ['normal', 'Normal'], ['slow', 'Neraya']])}</div>
       <div><span class="label">Tamil help</span>${seg('tamilHelp', [['more', 'Adhigam'], ['normal', 'Normal'], ['less', 'Kammi']])}</div>
@@ -571,7 +592,7 @@ function viewSettings() {
       <label class="check" for="s-mirror"><input type="checkbox" id="s-mirror" ${st.mirror ? 'checked' : ''}><span>Call-la kannaadi (camera) on pannu — vaai eppadi move aagudhu nu paakka. Video veliya pogaadhu, unga screen-la mattum.</span></label>
     </section>
     <section class="card stack">
-      <span class="label">Gemini API key</span>
+      <span class="label">${S.provider === 'openai' ? 'OpenAI' : 'Gemini'} API key</span>
       <p class="small">${S.configured ? `Set aayirukku (${esc(S.keyHint)}). Model: ${esc(S.liveModel)}` : 'Innum set pannala.'}</p>
       <div class="row"><input id="key-in" type="password" autocomplete="off" spellcheck="false" placeholder="Pudhu key paste pannunga" class="grow"><button class="btn quiet" data-act="savekey" id="key-btn">Save &amp; check</button></div>
       <p class="xs muted" id="key-msg"></p>
@@ -612,7 +633,7 @@ const ACT = {
     try {
       const r = await backend.saveKey(key);
       if (r.ok) { S = r.state; msg.textContent = 'Super! Key work aagudhu.'; toast('API key save aayiduchu'); go(S.onboarded ? 'home' : 'welcome'); return; }
-      msg.textContent = r.kind === 'format' ? 'Idhu sariyaana key madhiri illa. Full key-a copy pannunga.' : (ERR[r.kind] || ERR.unknown) + (r.detail && r.kind === 'unknown' ? ` (${r.detail})` : '');
+      msg.textContent = r.kind === 'format' ? 'Idhu sariyaana key madhiri illa. Full key-a copy pannunga.' : errMsg(r.kind, isOpenAIKey(key) ? 'openai' : 'gemini') + (r.detail && r.kind === 'unknown' ? ` (${r.detail})` : '');
     } catch { msg.textContent = ERR.dropped; }
     btn.disabled = false;
   },

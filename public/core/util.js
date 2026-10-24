@@ -17,10 +17,11 @@ export function errText(e) {
 
 export function classifyError(e) {
   const t = errText(e);
-  if (/API[_ ]?key not valid|API_KEY_INVALID|invalid api key|PERMISSION_DENIED|unregistered callers|\b401\b|\b403\b/i.test(t)) return 'badkey';
-  if (/quota|RESOURCE_EXHAUSTED|rate limit|too many requests|\b429\b/i.test(t)) return 'quota';
-  if (/location is not supported|not available in your country|FAILED_PRECONDITION.*location/i.test(t)) return 'region';
-  if (/not found|is not supported|NOT_FOUND|\b404\b|no longer available|unsupported model|does not exist/i.test(t)) return 'model';
+  if (/insufficient_quota|credit_balance_exhausted|no credits remaining|billing_hard_limit/i.test(t)) return 'billing'; // OpenAI: no credit left
+  if (/location is not supported|not available in your country|FAILED_PRECONDITION.*location|unsupported_country_region_territory/i.test(t)) return 'region';
+  if (/API[_ ]?key not valid|API_KEY_INVALID|invalid api key|invalid_api_key|Incorrect API key|PERMISSION_DENIED|unregistered callers|\b401\b|\b403\b/i.test(t)) return 'badkey';
+  if (/quota|RESOURCE_EXHAUSTED|rate limit|rate_limit|too many requests|\b429\b/i.test(t)) return 'quota';
+  if (/not found|is not supported|NOT_FOUND|\b404\b|no longer available|unsupported model|does not exist|model_not_found/i.test(t)) return 'model';
   if (/ENOTFOUND|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|fetch failed|Failed to fetch|NetworkError|network|socket hang up|timeout/i.test(t)) return 'offline';
   return 'unknown';
 }

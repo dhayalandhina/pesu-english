@@ -8,8 +8,9 @@ function makeCtx(rate) {
 }
 
 export class Call extends EventTarget {
-  constructor({ mode, day, scene, settings, socketFactory }) {
+  constructor({ mode, day, scene, settings, socketFactory, inRate = 16000 }) {
     super();
+    this.inRate = inRate; // mic sample rate the tutor wants: Gemini 16 kHz, OpenAI 24 kHz
     this.mode = mode;
     this.day = day;
     this.scene = scene;
@@ -42,7 +43,7 @@ export class Call extends EventTarget {
 
   async start() {
     // 1) audio contexts first, while we are still inside the tap (iPhone/Safari only allows sound to start here)
-    this.capCtx = makeCtx(16000);
+    this.capCtx = makeCtx(this.inRate);
     this.playCtx = makeCtx(24000);
     const resumed = Promise.all([this.capCtx.resume(), this.playCtx.resume()]).catch(() => {});
     // 2) microphone
@@ -67,14 +68,14 @@ export class Call extends EventTarget {
       await this.capCtx.audioWorklet.addModule(capUrl);
       src = this.capCtx.createMediaStreamSource(this.mic);
     } catch {
-      // some browsers can't mix a 16 kHz context with the mic's own rate: use the default rate and resample in the worklet
+      // some browsers can't mix a 16/24 kHz context with the mic's own rate: use the default rate and resample in the worklet
       try { this.capCtx.close(); } catch { /* ignore */ }
       this.capCtx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
       await this.capCtx.resume().catch(() => {});
       await this.capCtx.audioWorklet.addModule(capUrl);
       src = this.capCtx.createMediaStreamSource(this.mic);
     }
-    this.capNode = new AudioWorkletNode(this.capCtx, 'pcm-capture', { processorOptions: { targetRate: 16000, chunkMs: 50 } });
+    this.capNode = new AudioWorkletNode(this.capCtx, 'pcm-capture', { processorOptions: { targetRate: this.inRate, chunkMs: 50 } });
     const sink = this.capCtx.createGain();
     sink.gain.value = 0;
     src.connect(this.capNode);
@@ -136,7 +137,7 @@ export class Call extends EventTarget {
         this.emit('status', m);
         break;
       case 'in':
-        this.emit('in', m.text);
+        this.emit('in', { text: m.text, before: !!m.before });
         break;
       case 'userDone':
         this.emit('userDone', m.text);

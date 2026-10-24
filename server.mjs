@@ -14,7 +14,7 @@ import { makeAI, validateKey } from './lib/textai.mjs';
 import { createServerBridge } from './lib/live.mjs';
 import { openWindow } from './lib/launch.mjs';
 import { lessonById, sceneById } from './lib/prompts.mjs';
-import { computeState as computeCoreState, applySettingsPatch, migrateData } from './public/core/state.js';
+import { computeState as computeCoreState, applySettingsPatch, migrateData, setApiKey } from './public/core/state.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
@@ -132,10 +132,10 @@ function serve() {
 
     if (p === '/api/key') {
       const key = String(body.apiKey || '').trim();
-      if (!/^[A-Za-z0-9_\-.]{20,200}$/.test(key)) return sendJSON(res, 200, { ok: false, kind: 'format' });
+      if (!/^[A-Za-z0-9_\-.]{20,300}$/.test(key)) return sendJSON(res, 200, { ok: false, kind: 'format' });
       const v = await validateKey(key);
       if (!v.ok) return sendJSON(res, 200, { ok: false, kind: v.kind, detail: v.detail });
-      store.cfg.apiKey = key;
+      setApiKey(store.cfg, key);
       store.saveConfig();
       log('API key saved');
       return sendJSON(res, 200, { ok: true, state: computeState() });
@@ -159,7 +159,7 @@ function serve() {
       return sendJSON(res, 200, { ok: true, state: computeState() });
     }
     if (p === '/api/forget-key') {
-      store.cfg.apiKey = '';
+      setApiKey(store.cfg, '');
       store.saveConfig();
       return sendJSON(res, 200, { ok: true, state: computeState() });
     }

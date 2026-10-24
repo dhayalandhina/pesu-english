@@ -1,7 +1,7 @@
 // Where the app's data and calls live:
 //  - "server": the Mac/PC app (local server keeps the key and data on the computer)
 //  - "web":    the phone edition hosted as a static site (key and data stay in this browser)
-import { computeState, applySettingsPatch, resetProgress, migrateData } from './core/state.js';
+import { computeState, applySettingsPatch, resetProgress, migrateData, providerOf, setApiKey } from './core/state.js';
 
 const isWeb = document.querySelector('meta[name="pesu-mode"]')?.content === 'web';
 
@@ -30,14 +30,17 @@ function webBackend() {
   let mods = null;
   const load = async () => {
     if (!mods) {
-      const [s, g, k] = await Promise.all([import('./web/store.js'), import('./web/gemini.js'), import('./web/socket.js')]);
-      mods = { WebStore: s.WebStore, makeGemini: g.makeGemini, DEFAULT_BASE: g.DEFAULT_BASE, DirectSocket: k.DirectSocket };
+      const [s, g, o, k] = await Promise.all([import('./web/store.js'), import('./web/gemini.js'), import('./core/openai.js'), import('./web/socket.js')]);
+      mods = { WebStore: s.WebStore, makeGemini: g.makeGemini, DEFAULT_BASE: g.DEFAULT_BASE, makeOpenAI: o.makeOpenAI, DirectSocket: k.DirectSocket };
       store = new mods.WebStore();
     }
     return mods;
   };
   const baseUrl = () => { try { return localStorage.getItem('pesu-base-url') || null; } catch { return null; } };
-  const gem = (key) => mods.makeGemini(key, baseUrl() || mods.DEFAULT_BASE);
+  // the key decides who we talk to: OpenAI ("sk-…") or Gemini ("AIza…")
+  const ai = (key) => (providerOf(key) === 'openai'
+    ? mods.makeOpenAI(key, { baseUrl: baseUrl() || undefined })
+    : mods.makeGemini(key, baseUrl() || mods.DEFAULT_BASE));
   const state = () => computeState(store.data, store.cfg, { mode: 'web', persistent: store.persistent });
   return {
     mode: 'web',
@@ -45,10 +48,10 @@ function webBackend() {
     saveKey: async (apiKey) => {
       await load();
       const key = String(apiKey || '').trim();
-      if (!/^[A-Za-z0-9_\-.]{20,200}$/.test(key)) return { ok: false, kind: 'format' };
-      const v = await gem(key).validate();
+      if (!/^[A-Za-z0-9_\-.]{20,300}$/.test(key)) return { ok: false, kind: 'format' };
+      const v = await ai(key).validate();
       if (!v.ok) return v;
-      store.cfg.apiKey = key;
+      setApiKey(store.cfg, key);
       store.saveConfig();
       return { ok: true, state: state() };
     },
@@ -68,7 +71,7 @@ function webBackend() {
       const params = { mode: q.get('mode') || 'free' };
       if (q.get('day')) params.day = Number(q.get('day'));
       if (q.get('scene')) params.scene = q.get('scene');
-      return new mods.DirectSocket({ params, store, gemini: gem(store.cfg.apiKey) });
+      return new mods.DirectSocket({ params, store, ai: ai(store.cfg.apiKey) });
     },
   };
 }

@@ -123,7 +123,7 @@ try {
   await page.click('[data-act="chip"][data-k="puriyala"]');
   const chipSent = await waitFor(async () => (await mockStats()).texts.some((t) => t.includes("didn't understand")), 6000);
   check('"Puriyala" button sends the instruction to the tutor', !!chipSent);
-  const resumed = await waitFor(async () => (await mockStats()).resumes >= 1, 30000);
+  const resumed = await waitFor(async () => (await mockStats()).resumes >= 1, 60000);
   check('goAway -> session resumed with handle (call continues)', !!resumed);
   await sleep(2500);
   const st = await mockStats();

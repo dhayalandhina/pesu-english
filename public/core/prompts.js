@@ -2,8 +2,8 @@
 import { LESSONS, SCENES, SOUNDS } from '../lessons.js';
 
 export const TUTORS = {
-  priya: { name: 'Priya', voice: 'Sulafat', gender: 'woman' },
-  arun: { name: 'Arun', voice: 'Achird', gender: 'man' },
+  priya: { name: 'Priya', voice: 'Sulafat', oaVoice: 'marin', gender: 'woman' },
+  arun: { name: 'Arun', voice: 'Achird', oaVoice: 'cedar', gender: 'man' },
 };
 
 const clean = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();

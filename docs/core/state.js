@@ -1,14 +1,26 @@
 // Learner data model + the "state" the screens show. Shared by the server and the phone app.
 import { dkey, addDays } from './util.js';
 
-export const DEFAULT_MODELS = {
-  // Voice-to-voice tutor. First one that works is used; the rest are fallbacks.
-  liveModels: ['gemini-3.8-live', 'gemini-3.1-flash-live-preview', 'gemini-2.5-flash-native-audio-preview-12-2025'],
-  // Fast text model for the live "better way to say it" cards.
-  checkModels: ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.6-flash'],
-  // End-of-call report + memory.
-  summaryModels: ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'],
+// The key decides the provider: OpenAI keys start with "sk-", Gemini keys with "AIza".
+// liveModels = voice-to-voice tutor, checkModels = live "better way to say it" cards, summaryModels = report + memory.
+// First one that works is used; the rest are fallbacks.
+export const PROVIDER_MODELS = {
+  gemini: {
+    liveModels: ['gemini-3.8-live', 'gemini-3.1-flash-live-preview', 'gemini-2.5-flash-native-audio-preview-12-2025'],
+    checkModels: ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.6-flash'],
+    summaryModels: ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'],
+  },
+  openai: {
+    // fallback is the older mini at the same price, never the 5x costlier full model
+    liveModels: ['gpt-realtime-2.1-mini', 'gpt-realtime-mini'],
+    checkModels: ['gpt-6-luna', 'gpt-5.4-nano', 'gpt-5.4-mini'],
+    summaryModels: ['gpt-6-luna', 'gpt-5.4-mini'],
+  },
 };
+export const DEFAULT_MODELS = PROVIDER_MODELS.gemini;
+export const providerOf = (key) => (/^sk-/.test(String(key || '').trim()) ? 'openai' : 'gemini');
+export const GEMINI_VOICES = ['Sulafat', 'Vindemiatrix', 'Achernar', 'Aoede', 'Kore', 'Leda', 'Achird', 'Umbriel', 'Iapetus', 'Puck', 'Charon', 'Algieba'];
+export const OPENAI_VOICES = ['marin', 'cedar', 'coral', 'sage', 'shimmer', 'ash', 'verse', 'echo', 'ballad', 'alloy'];
 
 export function defaultSettings() {
   return {
@@ -55,12 +67,17 @@ export function migrateData(d) {
   return out;
 }
 
-export function migrateConfig(c) {
-  const cfg = Object.assign({ apiKey: '' }, DEFAULT_MODELS, isObj(c) ? c : {});
-  for (const k of Object.keys(DEFAULT_MODELS)) {
-    if (!Array.isArray(cfg[k]) || !cfg[k].length) cfg[k] = DEFAULT_MODELS[k].slice();
-  }
+// sets the key and the matching provider + model lists (changes cfg in place)
+export function setApiKey(cfg, key) {
+  cfg.apiKey = String(key || '').trim();
+  cfg.provider = providerOf(cfg.apiKey);
+  for (const [k, list] of Object.entries(PROVIDER_MODELS[cfg.provider])) cfg[k] = list.slice();
   return cfg;
+}
+
+export function migrateConfig(c) {
+  const cfg = Object.assign({ apiKey: '' }, isObj(c) ? c : {});
+  return setApiKey(cfg, cfg.apiKey);
 }
 
 export function resetProgress(data) {
@@ -88,6 +105,7 @@ export function computeState(data, cfg, extra = {}) {
     sessions: data.sessions.slice(0, 25),
     notebook: data.notebook.slice(0, 80),
     liveModel: cfg.liveModels[0],
+    provider: cfg.provider || providerOf(key),
     ...extra,
   };
 }
@@ -96,7 +114,7 @@ const SETTINGS_ALLOWED = {
   tutor: ['priya', 'arun'], speed: ['normal', 'slow'], patience: ['fast', 'normal', 'slow'], audioMode: ['earphone', 'speaker'],
   micMode: ['auto', 'ptt'], tamilHelp: ['more', 'normal', 'less'], captions: ['thanglish', 'tamil'],
 };
-const VOICES = ['', 'Sulafat', 'Vindemiatrix', 'Achernar', 'Aoede', 'Kore', 'Leda', 'Achird', 'Umbriel', 'Iapetus', 'Puck', 'Charon', 'Algieba'];
+const VOICES = ['', ...GEMINI_VOICES, ...OPENAI_VOICES];
 const cleanName = (v, fb) => String(v || '').replace(/[^\p{L} .'-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 30) || fb;
 
 export function applySettingsPatch(data, body) {

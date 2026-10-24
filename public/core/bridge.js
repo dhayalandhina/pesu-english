@@ -6,6 +6,7 @@
 //   out:   { json(obj), audio(base64Pcm24k), close() }   (towards the call screen)
 import { buildSystemInstruction, kickoffText, chipText, checkPrompt, summaryPrompt, lessonById, sceneById, TUTORS } from './prompts.js';
 import { classifyError, clean, words, dkey } from './util.js';
+import { GEMINI_VOICES, OPENAI_VOICES } from './state.js';
 
 const PATIENCE_MS = { fast: 700, normal: 1200, slow: 2000 };
 const CHECK_GAP_MS = 6500;   // keeps the free text-model quota safe (well under 15 requests/minute)
@@ -83,10 +84,22 @@ export class TutorBridge {
     }
   }
 
-  // ---------- Gemini Live ----------
+  // ---------- live session settings ----------
   buildConfig(handle) {
     const st = this.store.data.settings || {};
     const tutor = TUTORS[st.tutor] || TUTORS.priya;
+    if (this.store.cfg.provider === 'openai') {
+      return {
+        instructions: this.systemText,
+        voice: OPENAI_VOICES.includes(st.voice) ? st.voice : tutor.oaVoice,
+        ptt: st.micMode === 'ptt',
+        speaker: st.audioMode === 'speaker',
+        eagerness: st.patience === 'fast' ? 'medium' : 'low', // low = waits up to 8 s when he pauses to think
+        speed: st.speed === 'slow' ? 0.9 : 1,
+        // OpenAI has no session resumption: after a dropped line the new session gets the recent talk
+        history: handle ? this.transcript.filter((x) => x.who !== 'app' && x.text).slice(-12).map((x) => ({ role: x.who === 'tutor' ? 'assistant' : 'user', text: x.text })) : [],
+      };
+    }
     const aad = st.micMode === 'ptt'
       ? { disabled: true }
       : {
@@ -97,7 +110,7 @@ export class TutorBridge {
         };
     return {
       responseModalities: ['AUDIO'],
-      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: st.voice || tutor.voice } } },
+      speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: GEMINI_VOICES.includes(st.voice) ? st.voice : tutor.voice } } },
       systemInstruction: this.systemText,
       inputAudioTranscription: {},
       outputAudioTranscription: {},
@@ -179,7 +192,7 @@ export class TutorBridge {
     if (!sc) return;
 
     const inT = sc.inputTranscription;
-    if (inT && inT.text) this.userText(inT.text);
+    if (inT && inT.text) this.userText(inT.text, inT.at);
     if (inT && inT.finished) this.closeUser();
 
     if (sc.interrupted) {
@@ -209,13 +222,18 @@ export class TutorBridge {
     }
   }
 
-  userText(text) {
+  userText(text, at) {
+    let before = false;
     if (!this.curUser) {
-      this.curUser = { who: 'me', text: '', t: Date.now() };
-      this.transcript.push(this.curUser);
+      this.curUser = { who: 'me', text: '', t: at || Date.now() };
+      // his words can arrive after the tutor already started answering: keep the order he spoke in
+      let i = this.transcript.length;
+      while (i > 0 && this.transcript[i - 1].t > this.curUser.t) i--;
+      before = i < this.transcript.length;
+      this.transcript.splice(i, 0, this.curUser);
     }
     this.curUser.text += text;
-    this.out.json({ t: 'in', text });
+    this.out.json(before ? { t: 'in', text, before: true } : { t: 'in', text });
     clearTimeout(this.userIdle);
     this.userIdle = setTimeout(() => { if (!this.curTutor) this.closeUser(); }, 4000);
   }
@@ -260,7 +278,7 @@ export class TutorBridge {
   onUpstreamClose(ev) {
     if (this.ending) return;
     this.log(`upstream closed: ${ev?.code ?? ''} ${ev?.reason ?? ''}`);
-    if (this.handle && this.resumes < 6) { this.resume('closed'); return; }
+    if (this.handle && this.resumes < 6 && !ev?.fatal) { this.resume('closed'); return; }
     this.fail(closeError(ev));
   }
 

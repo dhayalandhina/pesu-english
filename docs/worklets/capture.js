@@ -1,4 +1,4 @@
-// Mic -> 16 kHz mono PCM16 chunks (about 50 ms each) + loudness, posted to the main thread.
+// Mic -> 16 kHz (Gemini) or 24 kHz (OpenAI) mono PCM16 chunks (about 50 ms each) + loudness, posted to the main thread.
 class PcmCapture extends AudioWorkletProcessor {
   constructor(options) {
     super();

@@ -21,9 +21,11 @@ ONE-TIME SETUP (Mac, Dhina panna vendiyadhu)
 3. Launchpad / Spotlight-la "Pesu English" open pannunga. Chrome-la thani window-a app varum.
    (Chrome illana default browser-la open aagum.)
 
-4. Mudhal screen: free Gemini API key.
-     https://aistudio.google.com/apikey  ->  Create API key  ->  copy
+4. Mudhal screen: OpenAI API key (sk-...).
+     https://platform.openai.com/api-keys  ->  Create new secret key  ->  copy
+     Account-la credit venum: https://platform.openai.com/settings/organization/billing/
      App-la paste pannunga -> "Save & check".
+     (Free Gemini key "AIza..." irundhaalum podalaam - app thaane kandupidikkum.)
 
 5. Peru, ooru, teacher (Priya miss / Arun sir) select panni "Seri, aarambippom".
 
@@ -56,6 +58,6 @@ DATA & PRIVACY
 - API key, progress, teacher memory, call transcripts ellaam indha computer-la mattum:
       Mac:     ~/Library/Application Support/Pesu English
       Windows: %APPDATA%\Pesu English
-- Voice Google Gemini Live-ku internet vazhiya pogum. FREE plan-la Google indha data-va
-  avanga products improve panna use pannalaam (paid plan-la use panna maattaanga).
+- Voice internet vazhiya key-oda company-ku mattum pogum (OpenAI Realtime, illana Google Gemini Live).
+  Gemini FREE plan-la Google indha data-va avanga products improve panna use pannalaam.
 - App window close panni 4 nimishathula background server thaana nirkkum.

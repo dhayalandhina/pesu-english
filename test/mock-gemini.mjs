@@ -96,6 +96,8 @@ function onLive(ws) {
   let silenceMs = 0;
   let inSpeech = false;
   let turns = 0;
+  let starts = 0;
+  let gate = true;
   const send = (o) => { if (ws.readyState === 1) ws.send(JSON.stringify(o)); };
 
   function stopStream() { clearInterval(streamTimer); streamTimer = null; speaking = false; }
@@ -103,6 +105,9 @@ function onLive(ws) {
   function tutorSays(text) {
     stopStream();
     speaking = true;
+    starts++;
+    // goAway a moment into the Nth answer (answers can get cut by barge-in, so don't wait for one to finish)
+    if (GOAWAY_AFTER && starts === GOAWAY_AFTER) setTimeout(() => { log('sending goAway'); send({ goAway: { timeLeft: '5s' } }); }, 1500);
     const audio = tone(1.4 + text.length / 60);
     const words = text.split(' ');
     const chunk = 2400 * 2; // 100 ms
@@ -115,14 +120,14 @@ function onLive(ws) {
         send({ serverContent: { turnComplete: true } });
         stopStream();
         turns++;
-        if (GOAWAY_AFTER && turns === GOAWAY_AFTER) { log('sending goAway'); send({ goAway: { timeLeft: '5s' } }); }
+        gate = false;
         return;
       }
       const part = audio.subarray(off, off + chunk);
       off += chunk;
       send({ serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm;rate=24000', data: part.toString('base64') } }] } } });
       if (wi < words.length && off % (chunk * 2) === 0) { send({ serverContent: { outputTranscription: { text: ` ${words[wi]}` } } }); wi++; }
-    }, 60);
+    }, 95); // about real time, so his next sentence can overlap the answer (barge-in)
   }
 
   function userUtteranceDone() {
@@ -139,7 +144,7 @@ function onLive(ws) {
       const model = String(m.setup.model || '');
       stats.setups.push({ model, hasSystem: !!m.setup.systemInstruction, voice: m.setup.generationConfig?.speechConfig?.voiceConfig?.prebuiltVoiceConfig?.voiceName, aad: m.setup.realtimeInputConfig?.automaticActivityDetection, handle: m.setup.sessionResumption?.handle || null, inT: !!m.setup.inputAudioTranscription, outT: !!m.setup.outputAudioTranscription, cwc: !!m.setup.contextWindowCompression });
       if (FAIL_FIRST && model.endsWith('gemini-3.8-live')) { log('rejecting model', model); ws.close(1008, `${model} is not found for API version v1beta`); return; }
-      if (m.setup.sessionResumption?.handle) stats.resumes++;
+      if (m.setup.sessionResumption?.handle) { stats.resumes++; gate = false; }
       send({ setupComplete: {} });
       send({ sessionResumptionUpdate: { newHandle: `handle-${Date.now()}`, resumable: true } });
       return;
@@ -167,6 +172,7 @@ function onLive(ws) {
     if (ri.audioStreamEnd) return;
     if (ri.audio && ri.audio.data) {
       stats.audioChunks++;
+      if (gate) return; // let the greeting finish before listening (the fake mic talks from the first second)
       const buf = Buffer.from(ri.audio.data, 'base64');
       const pcm = new Int16Array(buf.buffer, buf.byteOffset, buf.length / 2);
       let s = 0;
@@ -176,14 +182,18 @@ function onLive(ws) {
       const ms = (pcm.length / 16000) * 1000;
       if (rms > 0.02) {
         userSpeechMs += ms; silenceMs = 0;
-        if (!inSpeech && userSpeechMs > 150) {
+        if (!inSpeech && userSpeechMs >= 100) {
           inSpeech = true;
           if (speaking) { stats.interrupts++; stopStream(); send({ serverContent: { interrupted: true } }); }
         }
       } else if (inSpeech) {
         silenceMs += ms;
         if (silenceMs > 500) { inSpeech = false; userSpeechMs = 0; userUtteranceDone(); }
-      } else { userSpeechMs = 0; }
+      } else {
+        // syllables have short gaps: only a longer quiet resets the "starting to talk" count
+        silenceMs += ms;
+        if (silenceMs > 200) userSpeechMs = 0;
+      }
     }
   });
   ws.on('close', () => stopStream());
