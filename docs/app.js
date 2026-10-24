@@ -18,13 +18,19 @@ const VOICES = {
     priya: [['', 'Default (Warm)'], ['coral', 'Bright'], ['sage', 'Calm'], ['shimmer', 'Soft']],
     arun: [['', 'Default (Friendly)'], ['ash', 'Clear'], ['verse', 'Lively'], ['echo', 'Smooth']],
   },
+  groq: { priya: [['', 'Phone-oda voice']], arun: [['', 'Phone-oda voice']] },
 };
-const isOpenAIKey = (k) => /^sk-/.test(String(k || '').trim());
+const PROVIDER_NAME = { groq: 'Groq', openai: 'OpenAI', gemini: 'Gemini' };
+const keyProvider = (k) => (/^gsk_/.test(String(k || '').trim()) ? 'groq' : /^sk-/.test(String(k || '').trim()) ? 'openai' : 'gemini');
+const ERR_GROQ = {
+  quota: 'Groq free limit indraiku mudinjiduchu. Konja neram kazhichu (illana naalaiku) thirumba try pannunga.',
+  region: 'Indha Groq service unga area-la allow aagala.',
+};
 const ERR_OPENAI = {
   quota: 'OpenAI limit-a thaandiyaachu. Oru nimisham kazhichu thirumba try pannunga.',
   region: 'Indha OpenAI service unga area-la allow aagala.',
 };
-const errMsg = (kind, provider = S && S.provider) => (provider === 'openai' && ERR_OPENAI[kind]) || ERR[kind] || ERR.unknown;
+const errMsg = (kind, provider = S && S.provider) => (provider === 'openai' && ERR_OPENAI[kind]) || (provider === 'groq' && ERR_GROQ[kind]) || ERR[kind] || ERR.unknown;
 const ERR = {
   billing: 'OpenAI account-la credit (balance) illa. platform.openai.com/settings/organization/billing-la credit add pannunga ($5 podhum), apram thirumba try pannunga.',
   nokey: 'API key innum set pannala. Settings-la key podunga.',
@@ -167,18 +173,17 @@ function viewSetup() {
   return `<main class="narrow stack">
     <div class="brand big"><span class="logo" aria-hidden="true"></span>Pesu English</div>
     <section class="card stack">
-      <div><span class="label">Oru thadava setup</span><h1>OpenAI API key podunga</h1></div>
-      <p class="muted">Teacher-oda voice-um moolaiyum OpenAI Realtime. Oru thadava key podunga, podhum.</p>
+      <div><span class="label">Oru thadava setup</span><h1>API key podunga</h1></div>
+      <p class="muted">Teacher-oda moolai-ku oru AI key venum. Groq (free), OpenAI, Gemini — edhu key-um podalaam; app thaane kandupidikkum.</p>
       <ol class="steps">
-        <li><a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com/api-keys</a> open pannunga (OpenAI account-la login).</li>
-        <li><b>Create new secret key</b> click panni key-a copy pannunga (sk-… nu aarambikkum).</li>
-        <li>Account-la credit irukkanum (Settings &gt; Billing). Use pannura nimishathukku mattum dhaan charge.</li>
+        <li><b>Free:</b> <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a> open panni (Google account-la login) <b>Create API Key</b> → copy (gsk_… nu aarambikkum).</li>
         <li>Keezha paste panni <b>Save &amp; check</b> pannunga.</li>
+        <li>Innum natural voice venumna: OpenAI key (sk-…, credit venum) illana Gemini key (AIza…).</li>
       </ol>
       <label class="label" for="key-in">API key</label>
-      <div class="row"><input id="key-in" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…" class="grow"><button class="btn" data-act="savekey" id="key-btn">Save &amp; check</button></div>
+      <div class="row"><input id="key-in" type="password" autocomplete="off" spellcheck="false" placeholder="gsk_… / sk-… / AIza…" class="grow"><button class="btn" data-act="savekey" id="key-btn">Save &amp; check</button></div>
       <p class="xs muted" id="key-msg"></p>
-      <p class="xs muted">${S.mode === 'web' ? 'Key indha phone / browser-la mattum save aagum; OpenAI-ku mattum dhaan pogum.' : `Key indha computer-la mattum save aagum (${esc(S.dataDir)}).`} Free Gemini key (AIza…) irundhaalum idhula podalaam — app thaane kandupidikkum.</p>
+      <p class="xs muted">${S.mode === 'web' ? 'Key indha phone / browser-la mattum save aagum; key-oda company-ku mattum dhaan pogum.' : `Key indha computer-la mattum save aagum (${esc(S.dataDir)}).`} Groq-la teacher voice indha phone-oda own voice.</p>
     </section>
   </main>`;
 }
@@ -592,7 +597,7 @@ function viewSettings() {
       <label class="check" for="s-mirror"><input type="checkbox" id="s-mirror" ${st.mirror ? 'checked' : ''}><span>Call-la kannaadi (camera) on pannu — vaai eppadi move aagudhu nu paakka. Video veliya pogaadhu, unga screen-la mattum.</span></label>
     </section>
     <section class="card stack">
-      <span class="label">${S.provider === 'openai' ? 'OpenAI' : 'Gemini'} API key</span>
+      <span class="label">${PROVIDER_NAME[S.provider] || 'Gemini'} API key</span>
       <p class="small">${S.configured ? `Set aayirukku (${esc(S.keyHint)}). Model: ${esc(S.liveModel)}` : 'Innum set pannala.'}</p>
       <div class="row"><input id="key-in" type="password" autocomplete="off" spellcheck="false" placeholder="Pudhu key paste pannunga" class="grow"><button class="btn quiet" data-act="savekey" id="key-btn">Save &amp; check</button></div>
       <p class="xs muted" id="key-msg"></p>
@@ -633,7 +638,7 @@ const ACT = {
     try {
       const r = await backend.saveKey(key);
       if (r.ok) { S = r.state; msg.textContent = 'Super! Key work aagudhu.'; toast('API key save aayiduchu'); go(S.onboarded ? 'home' : 'welcome'); return; }
-      msg.textContent = r.kind === 'format' ? 'Idhu sariyaana key madhiri illa. Full key-a copy pannunga.' : errMsg(r.kind, isOpenAIKey(key) ? 'openai' : 'gemini') + (r.detail && r.kind === 'unknown' ? ` (${r.detail})` : '');
+      msg.textContent = r.kind === 'format' ? 'Idhu sariyaana key madhiri illa. Full key-a copy pannunga.' : errMsg(r.kind, keyProvider(key)) + (r.detail && r.kind === 'unknown' ? ` (${r.detail})` : '');
     } catch { msg.textContent = ERR.dropped; }
     btn.disabled = false;
   },

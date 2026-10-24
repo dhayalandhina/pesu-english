@@ -1,7 +1,7 @@
 // Learner data model + the "state" the screens show. Shared by the server and the phone app.
 import { dkey, addDays } from './util.js';
 
-// The key decides the provider: OpenAI keys start with "sk-", Gemini keys with "AIza".
+// The key decides the provider: Groq keys start with "gsk_", OpenAI keys with "sk-", Gemini keys with "AIza".
 // liveModels = voice-to-voice tutor, checkModels = live "better way to say it" cards, summaryModels = report + memory.
 // First one that works is used; the rest are fallbacks.
 export const PROVIDER_MODELS = {
@@ -9,6 +9,12 @@ export const PROVIDER_MODELS = {
     liveModels: ['gemini-3.8-live', 'gemini-3.1-flash-live-preview', 'gemini-2.5-flash-native-audio-preview-12-2025'],
     checkModels: ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.6-flash'],
     summaryModels: ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'],
+  },
+  groq: {
+    // no voice-to-voice model on Groq: these are the "brain"; hearing is Whisper, speaking is the device's voice
+    liveModels: ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b'],
+    checkModels: ['openai/gpt-oss-20b', 'qwen/qwen3.8-27b'],
+    summaryModels: ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b'],
   },
   openai: {
     // fallback is the older mini at the same price, never the 5x costlier full model
@@ -18,7 +24,10 @@ export const PROVIDER_MODELS = {
   },
 };
 export const DEFAULT_MODELS = PROVIDER_MODELS.gemini;
-export const providerOf = (key) => (/^sk-/.test(String(key || '').trim()) ? 'openai' : 'gemini');
+export const providerOf = (key) => {
+  const k = String(key || '').trim();
+  return /^gsk_/.test(k) ? 'groq' : /^sk-/.test(k) ? 'openai' : 'gemini';
+};
 export const GEMINI_VOICES = ['Sulafat', 'Vindemiatrix', 'Achernar', 'Aoede', 'Kore', 'Leda', 'Achird', 'Umbriel', 'Iapetus', 'Puck', 'Charon', 'Algieba'];
 export const OPENAI_VOICES = ['marin', 'cedar', 'coral', 'sage', 'shimmer', 'ash', 'verse', 'echo', 'ballad', 'alloy'];
 

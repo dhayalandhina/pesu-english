@@ -30,17 +30,20 @@ function webBackend() {
   let mods = null;
   const load = async () => {
     if (!mods) {
-      const [s, g, o, k] = await Promise.all([import('./web/store.js'), import('./web/gemini.js'), import('./core/openai.js'), import('./web/socket.js')]);
-      mods = { WebStore: s.WebStore, makeGemini: g.makeGemini, DEFAULT_BASE: g.DEFAULT_BASE, makeOpenAI: o.makeOpenAI, DirectSocket: k.DirectSocket };
+      const [s, g, o, q, k] = await Promise.all([import('./web/store.js'), import('./web/gemini.js'), import('./core/openai.js'), import('./core/groq.js'), import('./web/socket.js')]);
+      mods = { WebStore: s.WebStore, makeGemini: g.makeGemini, DEFAULT_BASE: g.DEFAULT_BASE, makeOpenAI: o.makeOpenAI, makeGroq: q.makeGroq, DirectSocket: k.DirectSocket };
       store = new mods.WebStore();
     }
     return mods;
   };
   const baseUrl = () => { try { return localStorage.getItem('pesu-base-url') || null; } catch { return null; } };
-  // the key decides who we talk to: OpenAI ("sk-…") or Gemini ("AIza…")
-  const ai = (key) => (providerOf(key) === 'openai'
-    ? mods.makeOpenAI(key, { baseUrl: baseUrl() || undefined })
-    : mods.makeGemini(key, baseUrl() || mods.DEFAULT_BASE));
+  // the key decides who we talk to: Groq ("gsk_…"), OpenAI ("sk-…") or Gemini ("AIza…")
+  const ai = (key) => {
+    const p = providerOf(key);
+    if (p === 'groq') return mods.makeGroq(key, { baseUrl: baseUrl() || undefined });
+    if (p === 'openai') return mods.makeOpenAI(key, { baseUrl: baseUrl() || undefined });
+    return mods.makeGemini(key, baseUrl() || mods.DEFAULT_BASE);
+  };
   const state = () => computeState(store.data, store.cfg, { mode: 'web', persistent: store.persistent });
   return {
     mode: 'web',

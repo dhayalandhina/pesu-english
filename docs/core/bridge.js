@@ -88,6 +88,15 @@ export class TutorBridge {
   buildConfig(handle) {
     const st = this.store.data.settings || {};
     const tutor = TUTORS[st.tutor] || TUTORS.priya;
+    if (this.store.cfg.provider === 'groq') {
+      return {
+        instructions: this.systemText,
+        ptt: st.micMode === 'ptt',
+        silenceMs: PATIENCE_MS[st.patience] || PATIENCE_MS.normal,
+        speed: st.speed === 'slow' ? 0.85 : 1,
+        fallbackModels: this.store.cfg.liveModels,
+      };
+    }
     if (this.store.cfg.provider === 'openai') {
       return {
         instructions: this.systemText,
@@ -208,6 +217,14 @@ export class TutorBridge {
         this.ensureTutor();
         this.out.audio(d.data);
       }
+    }
+    // Groq: the answer is spoken by the device's own voice on the call screen
+    const ls = sc.localSpeech;
+    if (ls && ls.text) {
+      this.ensureTutor();
+      this.curTutor.text += ` ${ls.text}`;
+      this.out.json({ t: 'out', text: ` ${ls.text}` });
+      this.out.json({ t: 'say', text: ls.text });
     }
     const outT = sc.outputTranscription;
     if (outT && outT.text) {

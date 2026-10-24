@@ -93,7 +93,7 @@ try {
   watch(page, '[phone]');
   await page.goto(BASE);
   await page.waitForSelector('#key-in');
-  check('setup asks for an OpenAI key', /OpenAI API key/.test(await page.textContent('h1')));
+  check('setup asks for an API key (Groq / OpenAI / Gemini)', /API key podunga/.test(await page.textContent('h1')));
   await page.screenshot({ path: `${OUT}/o01-setup.png` });
   await page.fill('#key-in', 'sk-bad-' + 'x'.repeat(40));
   await page.click('#key-btn');

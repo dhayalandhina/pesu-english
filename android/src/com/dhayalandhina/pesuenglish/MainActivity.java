@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
@@ -41,10 +42,13 @@ public class MainActivity extends Activity {
 
     // Browser features the page uses that Android's WebView doesn't have: bridged to Android below.
     static final String POLYFILL = "(function(){if(!window.PesuAndroid||window.__pesuAndroid)return;window.__pesuAndroid=1;"
-        + "if(!('speechSynthesis' in window)){"
-        + "window.SpeechSynthesisUtterance=function(t){this.text=String(t||'');this.lang='en-IN';this.rate=1;this.voice=null;};"
-        + "window.speechSynthesis={getVoices:function(){return[]},cancel:function(){PesuAndroid.stopSpeak()},"
-        + "speak:function(u){PesuAndroid.speak(String(u.text||''),String(u.lang||'en-IN'),Number(u.rate)||1)}};}"
+        + "if(!('speechSynthesis' in window)){var q={},n=0;"
+        + "window.__pesuTts=function(id,ev){var u=q[id];if(!u)return;if(ev==='start'){if(u.onstart)u.onstart({});}"
+        + "else{delete q[id];if(u.onend)u.onend({});}};"
+        + "window.SpeechSynthesisUtterance=function(t){this.text=String(t||'');this.lang='en-IN';this.rate=1;this.voice=null;"
+        + "this.onstart=null;this.onend=null;this.onerror=null;};"
+        + "window.speechSynthesis={getVoices:function(){return[]},cancel:function(){q={};PesuAndroid.stopSpeak()},"
+        + "speak:function(u){var id='u'+(++n);q[id]=u;PesuAndroid.speak(String(u.text||''),String(u.lang||'en-IN'),Number(u.rate)||1,id)}};}"
         + "if(!('wakeLock' in navigator)){navigator.wakeLock={request:function(){PesuAndroid.keepAwake(true);"
         + "return Promise.resolve({released:false,addEventListener:function(){},"
         + "release:function(){PesuAndroid.keepAwake(false);return Promise.resolve();}});}};}"
@@ -120,6 +124,13 @@ public class MainActivity extends Activity {
         tts = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
             @Override
             public void onInit(int status) { ttsReady = status == TextToSpeech.SUCCESS; }
+        });
+        // tell the page when each sentence starts/ends (the call screen shows "speaking" and moves the mouth)
+        tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+            @Override public void onStart(String id) { ttsEvent(id, "start"); }
+            @Override public void onDone(String id) { ttsEvent(id, "end"); }
+            @Override public void onError(String id) { ttsEvent(id, "end"); }
+            @Override public void onStop(String id, boolean interrupted) { ttsEvent(id, "end"); }
         });
 
         if (state != null) web.restoreState(state);
@@ -204,16 +215,26 @@ public class MainActivity extends Activity {
         }
     }
 
+    void ttsEvent(final String id, final String ev) {
+        if (id == null || !id.matches("u[0-9]+")) return;
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (web != null) web.evaluateJavascript("window.__pesuTts&&window.__pesuTts('" + id + "','" + ev + "')", null);
+            }
+        });
+    }
+
     // ---- what the page can call (window.PesuAndroid) ----
     class Bridge {
         @JavascriptInterface
-        public void speak(String text, String lang, double rate) {
-            if (tts == null || !ttsReady) return;
+        public void speak(String text, String lang, double rate, String id) {
+            if (tts == null || !ttsReady) { ttsEvent(id, "end"); return; }
             Locale loc = new Locale("en", "IN");
             if (tts.isLanguageAvailable(loc) < TextToSpeech.LANG_AVAILABLE) loc = Locale.US;
             tts.setLanguage(loc);
             tts.setSpeechRate((float) Math.max(0.5, Math.min(1.5, rate)));
-            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "pesu");
+            if (tts.speak(text, TextToSpeech.QUEUE_ADD, null, id) != TextToSpeech.SUCCESS) ttsEvent(id, "end");
         }
 
         @JavascriptInterface

@@ -153,6 +153,9 @@ export class Call extends EventTarget {
         this.clearPlayback();
         this.emit('interrupted');
         break;
+      case 'say':
+        this.say(m.text);
+        break;
       case 'fix':
         this.emit('fix', m.items || []);
         break;
@@ -197,11 +200,46 @@ export class Call extends EventTarget {
 
   clearPlayback() {
     if (this.playNode) this.playNode.port.postMessage({ type: 'clear' });
+    if (this.sayCount) { this.sayCount = 0; this.localSpeaking = false; try { window.speechSynthesis.cancel(); } catch { /* ignore */ } }
     this.tutorPlaying = false;
+  }
+
+  // Groq calls: the tutor's answer is spoken by this device's own voice, one sentence at a time
+  say(text) {
+    const ss = window.speechSynthesis;
+    if (!ss || !window.SpeechSynthesisUtterance || !text || this.ended) return;
+    const u = new SpeechSynthesisUtterance(text);
+    const vs = ss.getVoices() || [];
+    const v = vs.find((x) => /en[-_]IN/i.test(x.lang) && /google|natural|veena|rishi|neural/i.test(x.name)) || vs.find((x) => /en[-_]IN/i.test(x.lang)) || vs.find((x) => /en[-_](US|GB)/i.test(x.lang)) || null;
+    if (v) u.voice = v;
+    u.lang = v ? v.lang : 'en-IN';
+    u.rate = this.settings.speed === 'slow' ? 0.85 : 0.95;
+    this.sayCount = (this.sayCount || 0) + 1;
+    u.onstart = () => {
+      if (!this.sayCount) return;
+      this.localSpeaking = true;
+      this.tutorPlaying = true;
+      clearTimeout(this.thinkTimer);
+      this.setState('speaking');
+    };
+    const done = () => {
+      if (!this.sayCount) return;
+      this.sayCount -= 1;
+      if (this.sayCount) return;
+      this.localSpeaking = false;
+      this.tutorPlaying = false;
+      this.bargeIn = false;
+      this.loudFrames = 0;
+      if (!this.ended && this.state === 'speaking') this.setState('listening');
+    };
+    u.onend = done;
+    u.onerror = done;
+    ss.speak(u);
   }
 
   // tutor voice level 0..1 for lip movement
   tutorLevel() {
+    if (this.localSpeaking) return 0.05 + 0.05 * Math.abs(Math.sin(performance.now() / 85)); // device voice: no audio to measure
     if (!this.analyser || !this.tutorPlaying) return 0;
     if (!this._ampBuf) this._ampBuf = new Float32Array(this.analyser.fftSize);
     this.analyser.getFloatTimeDomainData(this._ampBuf);

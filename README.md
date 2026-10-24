@@ -4,6 +4,9 @@ Video call madhiri spoken English teacher, Tamil pesuravangalukku. Neenga pesung
 
 Voice + brain, picked by the key you paste:
 
+- **Groq** (`gsk_…`, free key from https://console.groq.com/keys): `whisper-large-v3-turbo` hears him, `openai/gpt-oss-120b` answers
+  (Qwen / gpt-oss-20b fallbacks), the device's own voice speaks. Free tier is about one class a day.
+
 - **OpenAI** (`sk-…`, https://platform.openai.com/api-keys, needs account credit): Realtime `gpt-realtime-2.1-mini` (voice, 24 kHz), `gpt-transcribe` (his words), `gpt-6-luna` (cards + report).
 - **Gemini** (`AIza…`, free key from https://aistudio.google.com/apikey): Gemini Live `gemini-3.8-live` + flash models.
 
@@ -50,12 +53,13 @@ Tests (offline: mock Gemini / mock OpenAI + headless Chromium with a fake mic):
 GLOBAL_NODE_MODULES=$(npm root -g) node test/e2e.mjs         # Mac/PC app on Gemini, 23 checks
 GLOBAL_NODE_MODULES=$(npm root -g) node test/e2e-web.mjs     # phone edition on Gemini, 22 checks
 GLOBAL_NODE_MODULES=$(npm root -g) node test/e2e-openai.mjs  # phone + Mac on OpenAI, 28 checks
+GLOBAL_NODE_MODULES=$(npm root -g) node test/e2e-groq.mjs    # phone edition on Groq, 15 checks
 node test/translit.test.mjs                                 # Tamil -> Thanglish captions
 ```
 
 ## Layout
 
-- `public/core/` — shared: tutor prompts, call logic (`bridge.js`), data model, OpenAI Realtime adapter (`openai.js`)
+- `public/core/` — shared: tutor prompts, call logic (`bridge.js`), data model, OpenAI Realtime adapter (`openai.js`), Groq pipeline (`groq.js`)
 - `public/web/` — phone edition: direct Gemini Live WebSocket + REST, browser storage
 - `public/` — screens, talking avatar, audio worklets, 30-day course data
 - `lib/`, `server.mjs` — Mac/PC local server (official `@google/genai` SDK)
