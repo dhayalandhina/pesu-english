@@ -14,6 +14,19 @@ Voice + brain, picked by the key you paste:
 | **Phone (web app)** — `docs/` | Any HTTPS static host (GitHub Pages). Open on the phone → "Add to Home screen". | Key + progress stay in that phone's browser; audio goes only to Google. |
 | **Mac / PC app** — `server.mjs` | Local Node server + Chrome app window (`packaging/build-mac.sh` makes `Pesu English.app` with bundled Node). | `~/Library/Application Support/Pesu English` (key file is mode 600). |
 
+## Android app (APK)
+
+`android/` is a small WebView shell (no Gradle) that opens the hosted phone edition full screen and adds what a browser
+normally gives it: mic/camera permission, screen kept on during a call, Android text-to-speech for the "listen" buttons,
+backup to Downloads and the restore file picker. The app updates itself with the site; a new APK is only needed if `android/` changes.
+
+```bash
+ANDROID_BUILD_TOOLS=<build-tools/36> ANDROID_JAR=<platforms/android-35/android.jar> \
+APK_KEYSTORE=<your .jks> APK_KS_PASS=<password> bash packaging/build-apk.sh dist
+```
+
+Install: copy `Pesu-English.apk` to the phone → open it → allow "Install unknown apps" for that file manager/WhatsApp → Install.
+
 ## Phone setup (once)
 
 1. Open the hosted link on the phone (Chrome on Android, Safari on iPhone).
