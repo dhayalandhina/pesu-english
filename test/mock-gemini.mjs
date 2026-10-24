@@ -57,7 +57,7 @@ const server = http.createServer((req, res) => {
       const j = JSON.parse(body || '{}');
       const prompt = JSON.stringify(j.contents || '');
       let out;
-      if (prompt.includes('check a beginner English learner')) {
+      if (prompt.includes('spoken sentences during a live practice call')) {
         stats.checks++;
         out = { items: [{ n: 1, said: 'Yesterday I go to market', better: 'Yesterday I went to the market.', tip: "Neththu nadandhadhu-ku 'went' (past)", kind: 'grammar' }] };
       } else if (prompt.includes('end-of-call report')) {
@@ -148,7 +148,7 @@ function onLive(ws) {
     try { m = JSON.parse(String(raw)); } catch { return; }
     if (m.setup) {
       const model = String(m.setup.model || '');
-      stats.setups.push({ model, hasSystem: !!m.setup.systemInstruction, voice: m.setup.generationConfig?.speechConfig?.voiceConfig?.prebuiltVoiceConfig?.voiceName, aad: m.setup.realtimeInputConfig?.automaticActivityDetection, handle: m.setup.sessionResumption?.handle || null, inT: !!m.setup.inputAudioTranscription, outT: !!m.setup.outputAudioTranscription, cwc: !!m.setup.contextWindowCompression });
+      stats.setups.push({ model, hasSystem: !!m.setup.systemInstruction, system: JSON.stringify(m.setup.systemInstruction || '').slice(0, 20000), voice: m.setup.generationConfig?.speechConfig?.voiceConfig?.prebuiltVoiceConfig?.voiceName, aad: m.setup.realtimeInputConfig?.automaticActivityDetection, handle: m.setup.sessionResumption?.handle || null, inT: !!m.setup.inputAudioTranscription, outT: !!m.setup.outputAudioTranscription, cwc: !!m.setup.contextWindowCompression });
       if (FAIL_FIRST && model.endsWith('gemini-3.8-live')) { log('rejecting model', model); ws.close(1008, `${model} is not found for API version v1beta`); return; }
       if (m.setup.sessionResumption?.handle) { stats.resumes++; gate = false; }
       send({ setupComplete: {} });

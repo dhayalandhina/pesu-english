@@ -60,7 +60,7 @@ const server = http.createServer((req, res) => {
       stats.chatBodies.push({ model: j.model, response_format: j.response_format?.type || null, reasoning_effort: j.reasoning_effort || null, max_completion_tokens: j.max_completion_tokens, temperature: j.temperature ?? null });
       const prompt = JSON.stringify(j.messages || '');
       let out;
-      if (prompt.includes('check a beginner English learner')) {
+      if (prompt.includes('spoken sentences during a live practice call')) {
         stats.checks++;
         out = { items: [{ n: 1, said: 'Yesterday I go to market', better: 'Yesterday I went to the market.', tip: "Neththu nadandhadhu-ku 'went' (past)", kind: 'grammar' }] };
       } else if (prompt.includes('end-of-call report')) {

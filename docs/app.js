@@ -11,6 +11,13 @@ const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const lessonById = (id) => LESSONS.find((l) => l.id === Number(id));
 const TUTOR = { priya: { name: 'Priya', title: 'Priya miss' }, arun: { name: 'Arun', title: 'Arun sir' } };
+const LEVEL_PICK = [
+  ['beginner', 'Beginner', 'Aarambam: basic words theriyum, aanaa pesa kashtam. Mella, simple-ah, Tamil help adhigam.'],
+  ['intermediate', 'Intermediate', 'Nadu: puriyum, chinna sentence pesuven, thappu varum. Normal speed, konjam periya words.'],
+  ['advanced', 'Advanced', 'Mel: nalla pesuven, innum natural-ah, polish-ah pesanum. Idioms, opinion questions, chinna thappum sari pannuvaanga.'],
+];
+const LEVEL_NAME = { beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced' };
+const WORDS_TAB = { beginner: 'basic', intermediate: 'medium', advanced: 'advanced' };
 const VOICES = {
   gemini: {
     priya: [['', 'Default (Warm)'], ['Vindemiatrix', 'Gentle'], ['Achernar', 'Soft'], ['Aoede', 'Breezy']],
@@ -57,7 +64,7 @@ let lastReport = null;
 let toastT = 0;
 let roleOpen = false;
 let resetAsk = false;
-let wordsLevel = 'basic';
+let wordsLevel = '';   // '' = follow his level
 let wordsQuery = '';
 
 // ---------------- utils ----------------
@@ -106,7 +113,11 @@ const IC = {
   play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
   book: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h5v18H6a2 2 0 0 1-2-2zM13 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5z"/></svg>',
   bulb: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.6.6 1 1.4 1 2.5h6c0-1.1.4-1.9 1-2.5A6 6 0 0 0 12 3z"/></svg>',
+  menu: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+  close: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
 };
+const NAV_ITEMS = [['home', 'Home', 'home'], ['words', 'Words', 'book'], ['tips', 'Tips', 'bulb'], ['progress', 'Progress', 'chart'], ['settings', 'Settings', 'gear']];
+let menuOpen = false;
 
 // ---------------- presence: keeps the local server alive while this window is open ----------------
 let presenceFails = 0;
@@ -129,17 +140,26 @@ function presence() {
 }
 
 // ---------------- shell ----------------
+// Top bar: full nav on wide screens; on the phone a hamburger button opens the same list as a menu.
 function topbar() {
   const p = S.progress;
-  const nav = (k, label, icon) => `<button class="nav ${screen === k ? 'on' : ''}" data-act="go" data-to="${k}" aria-label="${label}">${icon}<span>${label}</span></button>`;
+  const chips = `<span class="chip" title="Course day">Day <b class="num">${p.allDone ? 30 : p.currentDay}</b> of 30</span>
+      <span class="chip ${p.streak ? 'hot' : ''}" title="Thodarndhu practice panna naatkal">${IC.flame}<b class="num">${p.streak}</b> naal</span>`;
+  const nav = (k, label, icon) => `<button class="nav ${screen === k ? 'on' : ''}" data-act="go" data-to="${k}" aria-label="${label}">${IC[icon]}<span>${label}</span></button>`;
+  const item = (k, label, icon) => `<button class="mitem ${screen === k ? 'on' : ''}" data-act="go" data-to="${k}" role="menuitem" aria-current="${screen === k ? 'page' : 'false'}">${IC[icon]}<span>${label}</span></button>`;
   return `<header class="top">
     <div class="brand"><span class="logo" aria-hidden="true"></span>Pesu English</div>
-    <div class="chips">
-      <span class="chip" title="Course day">Day <b class="num">${p.allDone ? 30 : p.currentDay}</b> of 30</span>
-      <span class="chip ${p.streak ? 'hot' : ''}" title="Thodarndhu practice panna naatkal">${IC.flame}<b class="num">${p.streak}</b> naal</span>
-    </div>
-    <nav class="navs">${nav('home', 'Home', IC.home)}${nav('words', 'Words', IC.book)}${nav('tips', 'Tips', IC.bulb)}${nav('progress', 'Progress', IC.chart)}${nav('settings', 'Settings', IC.gear)}</nav>
-  </header>`;
+    <div class="chips">${chips}</div>
+    <nav class="navs" aria-label="Main">${NAV_ITEMS.map((n) => nav(...n)).join('')}</nav>
+    <button class="burger" data-act="menu" aria-label="Menu" aria-haspopup="true" aria-expanded="${menuOpen}" aria-controls="menu">${menuOpen ? IC.close : IC.menu}</button>
+  </header>
+  <div class="menu-wrap ${menuOpen ? 'open' : ''}" id="menu" ${menuOpen ? '' : 'hidden'}>
+    <div class="menu-back" data-act="menu-close"></div>
+    <nav class="menu" role="menu" aria-label="Menu">
+      <div class="menu-chips">${chips}</div>
+      ${NAV_ITEMS.map((n) => item(...n)).join('')}
+    </nav>
+  </div>`;
 }
 
 function mountAvatar(sel, state = 'idle') {
@@ -172,6 +192,7 @@ function go(to) {
   screen = to;
   roleOpen = false;
   resetAsk = false;
+  menuOpen = false;
   render();
   window.scrollTo(0, 0);
 }
@@ -196,6 +217,10 @@ function viewSetup() {
   </main>`;
 }
 
+function levelPicker(cur) {
+  return `<div class="levels" role="group" aria-label="Level">${LEVEL_PICK.map(([k, n, d]) => `<button type="button" class="level-pick ${cur === k ? 'on' : ''}" data-act="pick-level" data-k="${k}" aria-pressed="${cur === k}"><b>${n}</b><span>${esc(d)}</span></button>`).join('')}</div>`;
+}
+
 function viewWelcome() {
   const st = S.settings;
   const tutorBtn = (k) => `<button class="tutor-pick ${st.tutor === k ? 'on' : ''}" data-act="pick-tutor" data-k="${k}"><b>${TUTOR[k].title}</b><span>${k === 'priya' ? 'Warm, patient' : 'Friendly, calm'}</span></button>`;
@@ -211,6 +236,7 @@ function viewWelcome() {
           <div class="grow"><label class="label" for="w-city">Ooru</label><input id="w-city" type="text" value="${esc(S.profile.city)}" autocomplete="off"></div>
         </div>
         <div><span class="label">Teacher</span><div class="row">${tutorBtn('priya')}${tutorBtn('arun')}</div></div>
+        <div><span class="label">Unga English level ippo</span>${levelPicker(st.level || 'beginner')}<p class="xs muted">Idha vechu teacher speed, words, Tamil help, thiruththam ellaam set pannuvaanga. Settings-la eppo venaalum maaththalaam.</p></div>
         <div class="tip">Earphone (mic irukkuradhu) pottu pesunga — teacher voice thirumba mic-la pogaadhu, pechu clear ah irukkum.</div>
         <button class="btn big" data-act="finish-welcome">Seri, aarambippom</button>
       </div>
@@ -227,7 +253,7 @@ function viewHome() {
   const tip = TIPS[new Date().getDate() % TIPS.length];
   const heroText = p.allDone
     ? `<h1>30 naal course mudinjidhu!</h1><p>Ippo dhinamum ${esc(t.title)} kooda free-ah pesunga, illana role-play pannunga. Edha venumnaalum thirumba pannalaam.</p>`
-    : `<span class="label">Indraiya class · Day ${l.id} · ${esc(WEEKS[l.wk] || '')}</span>
+    : `<span class="label">Indraiya class · Day ${l.id} · ${esc(WEEKS[l.wk] || '')} · ${esc(LEVEL_NAME[S.settings.level] || 'Beginner')}</span>
        <h1>${esc(l.t)}</h1>
        <p class="muted">${esc(l.en)} · ~15 nimisham</p>
        <p>${esc(plainSay(l.goal))}</p>`;
@@ -300,6 +326,7 @@ function wordCard(it) {
 }
 
 function viewWords() {
+  if (!wordsLevel) wordsLevel = WORDS_TAB[S.settings.level] || 'basic';
   const lvl = LEVELS.find((l) => l[0] === wordsLevel) || LEVELS[0];
   const q = wordsQuery.trim().toLowerCase();
   const groups = q
@@ -310,7 +337,7 @@ function viewWords() {
     <div class="row sp wrapline"><h1>Words</h1><span class="xs muted">Oru naalaiku 5 words podhum. Kettu, sollunga, 3 sentence-la use pannunga.</span></div>
     <div class="seg" role="group">${LEVELS.map((l) => `<button type="button" data-act="words-level" data-v="${l[0]}" aria-pressed="${wordsLevel === l[0] && !q}">${l[1]} <small>${total(l)}</small></button>`).join('')}</div>
     <input id="words-q" type="search" placeholder="Word thedunga (English / Thanglish / Tamil)" value="${esc(wordsQuery)}" autocomplete="off">
-    ${groups.map((g) => g.items.length ? `<section class="stack"><h2 class="wgroup">${esc(g.g)} <small class="muted">${g.items.length}</small></h2><div class="wgrid">${g.items.map(wordCard).join('')}</div></section>` : '').join('') || '<p class="empty">Andha word list-la illa. Teacher-kitta "Doubt kelunga" mode-la kelunga.</p>'}
+    ${groups.map((g, i) => g.items.length ? `<details class="wsec" ${q || i === 0 ? 'open' : ''}><summary class="wgroup"><span>${esc(g.g)}</span><small class="muted">${g.items.length} words</small></summary><div class="wgrid">${g.items.map(wordCard).join('')}</div></details>` : '').join('') || '<p class="empty">Andha word list-la illa. Teacher-kitta "Doubt kelunga" mode-la kelunga.</p>'}
   </main>`;
 }
 
@@ -719,6 +746,7 @@ function viewSettings() {
         <div class="grow"><label class="label" for="s-name">Peru</label><input id="s-name" type="text" value="${esc(S.profile.name)}" autocomplete="off"></div>
         <div class="grow"><label class="label" for="s-city">Ooru</label><input id="s-city" type="text" value="${esc(S.profile.city)}" autocomplete="off"></div>
       </div>
+      <div><span class="label">Unga English level</span>${levelPicker(st.level || 'beginner')}</div>
       <div><span class="label">Teacher</span>${seg('tutor', [['priya', 'Priya miss'], ['arun', 'Arun sir']])}</div>
       <div><span class="label">Voice</span><div class="seg wrapseg" role="group">${voices.map(([v, l]) => `<button type="button" data-act="set" data-k="voice" data-v="${v}" aria-pressed="${curVoice === v}">${esc(l)}</button>`).join('')}</div></div>
       <div><span class="label">Teacher pesura speed</span>${seg('speed', [['normal', 'Normal'], ['slow', 'Mella']])}</div>
@@ -761,6 +789,8 @@ const ACT = {
   start: (b) => startCall(b.dataset.mode, b.dataset.day ? Number(b.dataset.day) : undefined, b.dataset.scene),
   'toggle-role': () => { roleOpen = !roleOpen; render(); },
   'words-level': (b) => { wordsLevel = b.dataset.v; wordsQuery = ''; render(); },
+  menu: () => { menuOpen = !menuOpen; render(); },
+  'menu-close': () => { menuOpen = false; render(); },
   mictest: () => toggleMicTest(),
   speak: (b) => { if (!speakLocal(b.dataset.t)) toast('Indha browser-la voice play aagala.'); },
   savekey: async () => {
@@ -779,6 +809,7 @@ const ACT = {
     btn.disabled = false;
   },
   'pick-tutor': async (b) => { await saveSettings({ settings: { tutor: b.dataset.k, voice: '' } }); const n = $('#w-name')?.value; const c = $('#w-city')?.value; render(); if (n) $('#w-name').value = n; if (c) $('#w-city').value = c; },
+  'pick-level': async (b) => { await saveSettings({ settings: { level: b.dataset.k } }); const n = $('#w-name')?.value; const c = $('#w-city')?.value; render(); if (n && $('#w-name')) $('#w-name').value = n; if (c && $('#w-city')) $('#w-city').value = c; },
   'finish-welcome': async () => {
     await saveSettings({ profile: { name: $('#w-name').value, city: $('#w-city').value }, onboarded: true });
     go('home');
@@ -898,6 +929,7 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'Space' && S.settings.micMode === 'ptt') { e.preventDefault(); if (!e.repeat) { $('#ptt')?.classList.add('down'); call.pttDown(); } }
   if (e.key === 'm' || e.key === 'M') { if (S.settings.micMode !== 'ptt') toggleMute(); }
 });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && menuOpen) { menuOpen = false; render(); } });
 document.addEventListener('keyup', (e) => {
   if (call && e.code === 'Space' && S.settings.micMode === 'ptt') { e.preventDefault(); pttRelease(); }
 });

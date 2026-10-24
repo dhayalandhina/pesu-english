@@ -36,7 +36,7 @@ http.createServer((req, res) => {
       const all = JSON.stringify(j.messages || '');
       stats.chats.push({ model: j.model, json: j.response_format?.type || null, reasoning_effort: j.reasoning_effort ?? null, include_reasoning: j.include_reasoning ?? null, messages: (j.messages || []).length, voiceNotes: all.includes('VOICE CALL NOTES'), puriyala: all.includes("didn't understand") });
       let content;
-      if (all.includes('check a beginner English learner')) {
+      if (all.includes('spoken sentences during a live practice call')) {
         content = JSON.stringify({ items: [{ n: 1, said: 'Yesterday I go to market', better: 'Yesterday I went to the market.', tip: "Neththu nadandhadhu-ku 'went' (past)", kind: 'grammar' }] });
       } else if (all.includes('end-of-call report')) {
         content = JSON.stringify({ summary: 'Indraiku past tense practice pannom.', didWell: ['Clear ah pesineenga'], fixThese: [{ said: 'Yesterday I go to market', better: 'Yesterday I went to the market.', tip: "Neththu = past, 'went'" }], newWords: [{ word: 'vegetables', meaning: 'kaaikari' }], nextTime: "'-ed' verbs practice.", facts: ['Goes to the market'], mistakePatterns: ['Present tense for past'], level: 'A1', lessonCovered: true, memoryNote: 'Past tense next time.' });

@@ -35,6 +35,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = [];
 const check = (name, ok, extra = '') => { results.push({ name, ok }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? `  (${extra})` : ''}`); };
 const mockStats = async () => (await fetch(`http://127.0.0.1:${MOCK}/__stats`)).json();
+// go to a screen: through the hamburger menu on phones, the nav row elsewhere
+async function nav(page, to) {
+  if (await page.isVisible('.burger')) { await page.click('.burger'); await page.click(`#menu .mitem[data-to="${to}"]`); }
+  else await page.click(`.navs [data-to="${to}"]`);
+}
 async function waitFor(fn, ms, step = 200) {
   const end = Date.now() + ms;
   while (Date.now() < end) { try { const v = await fn(); if (v) return v; } catch { /* retry */ } await sleep(step); }
@@ -72,14 +77,32 @@ try {
   await page.waitForSelector('#w-name', { timeout: 8000 });
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('pesu-config-v1') || '{}').apiKey || '');
   check('key saved in this browser only', stored.startsWith('TESTKEY'));
+  check('welcome: level picker (Beginner / Intermediate / Advanced)', (await page.$$('.level-pick')).length === 3 && !!(await page.$('.level-pick.on[data-k="beginner"]')));
+  await page.click('.level-pick[data-k="intermediate"]');
+  await sleep(300);
+  check('level saved from the welcome screen', (await page.evaluate(() => JSON.parse(localStorage.getItem('pesu-data-v1')).settings.level)) === 'intermediate');
   await page.click('[data-act="finish-welcome"]');
   await page.waitForSelector('.hero');
   await sleep(600);
+  check('home shows the chosen level', /Intermediate/.test(await page.textContent('.hero')));
   await page.screenshot({ path: `${OUT}/w02-home.png`, fullPage: true });
   const audioMode = await page.evaluate(() => JSON.parse(localStorage.getItem('pesu-data-v1')).settings.audioMode);
   check('phone defaults to loudspeaker mode', audioMode === 'speaker', audioMode);
   const sw = await waitFor(async () => page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())), 6000);
   check('installable: service worker registered', !!sw);
+  check('phone: hamburger button instead of the nav row', await page.isVisible('.burger') && !(await page.isVisible('.navs')));
+  await page.click('.burger');
+  await sleep(300);
+  const items = await page.$$eval('#menu .mitem span', (els) => els.map((e) => e.textContent));
+  check('phone: menu lists Home, Words, Tips, Progress, Settings', JSON.stringify(items) === JSON.stringify(['Home', 'Words', 'Tips', 'Progress', 'Settings']), items.join(','));
+  await page.screenshot({ path: `${OUT}/w02b-menu.png` });
+  await page.click('#menu .mitem[data-to="tips"]');
+  await page.waitForSelector('.ticks');
+  check('phone: menu item opens the screen and closes the menu', !(await page.isVisible('#menu')));
+  await page.click('.burger');
+  await sleep(200);
+  await page.click('#menu .mitem[data-to="home"]');
+  await page.waitForSelector('.hero');
   const manifestOk = await page.evaluate(async () => { const r = await fetch('manifest.webmanifest'); const m = await r.json(); return m.icons.some((i) => i.purpose === 'maskable') && m.start_url === '.'; });
   check('installable: manifest with maskable icon', manifestOk);
 
@@ -100,6 +123,7 @@ try {
   const st = await mockStats();
   const s0 = st.setups[0] || {};
   check('browser setup message: system prompt, voice, transcripts, VAD, compression, model', s0.model === 'models/gemini-3.8-live' && s0.hasSystem && s0.voice === 'Sulafat' && s0.inT && s0.outT && s0.cwc && s0.aad && s0.aad.startOfSpeechSensitivity === 'START_SENSITIVITY_LOW', JSON.stringify(s0.aad));
+  check('tutor is told his level (intermediate)', /HIS LEVEL: INTERMEDIATE/.test(s0.system || ''));
   check('mic audio streamed from the phone page', st.audioChunks > 20, `chunks=${st.audioChunks}`);
   await page.screenshot({ path: `${OUT}/w04-call-fix.png`, fullPage: true });
   await page.click('.hang');
@@ -109,7 +133,7 @@ try {
   check('report card + Day 1 complete', /Day 1 complete/.test(await page.textContent('.stamp')));
   const data = await page.evaluate(() => JSON.parse(localStorage.getItem('pesu-data-v1')));
   check('progress, memory, notebook saved in the phone', data.progress.daysDone['1'] && data.memory.facts.length > 0 && data.notebook.length > 0 && data.sessions.length === 1);
-  await page.click('[data-act="go"][data-to="settings"]');
+  await nav(page, 'settings');
   await page.waitForSelector('[data-act="backup"]');
   await sleep(300);
   await page.screenshot({ path: `${OUT}/w06-settings.png`, fullPage: true });
@@ -127,10 +151,11 @@ try {
   check('key removed from the address bar after setup', !(await p2.evaluate(() => location.hash)));
   await p2.click('[data-act="finish-welcome"]');
   await p2.waitForSelector('.hero');
-  // words + tips screens
-  await p2.click('[data-act="go"][data-to="words"]');
+  // words + tips screens (p2 is a fresh phone: beginner by default -> Basic tab)
+  await nav(p2, 'words');
   await p2.waitForSelector('.wcard');
   const wtext = await p2.textContent('main');
+  check('Words tab follows his level (beginner -> Basic)', !!(await p2.$('[data-act="words-level"][data-v="basic"][aria-pressed="true"]')) && /Vanakkam & manushanga/.test(wtext));
   check('Words screen: 3 levels, Tamil script + Thanglish + example', /Basic/.test(wtext) && /Medium/.test(wtext) && /Advanced/.test(wtext) && /\u0BB5\u0BA3\u0B95\u0BCD\u0B95\u0BAE\u0BCD/.test(wtext) && /vanakkam/.test(wtext) && (await p2.$$('.wcard')).length > 100, `${(await p2.$$('.wcard')).length} cards`);
   await p2.click('[data-act="words-level"][data-v="advanced"]');
   await p2.waitForSelector('.wcard');
@@ -139,11 +164,11 @@ try {
   await sleep(300);
   check('Words search by Thanglish meaning', /yesterday/.test(await p2.textContent('.wcard')));
   await p2.screenshot({ path: `${OUT}/w08-words.png`, fullPage: true });
-  await p2.click('[data-act="go"][data-to="tips"]');
+  await nav(p2, 'tips');
   await p2.waitForSelector('.ticks');
   check('Tips screen: how to learn English easily', /Dhinamum/.test(await p2.textContent('main')) && (await p2.$$('.ticks li')).length >= 30);
   await p2.screenshot({ path: `${OUT}/w09-tips.png`, fullPage: true });
-  await p2.click('[data-act="go"][data-to="settings"]');
+  await nav(p2, 'settings');
   await p2.waitForSelector('#restore-file', { state: 'attached' });
   await p2.setInputFiles('#restore-file', dlPath);
   await p2.waitForSelector('.hero', { timeout: 8000 });

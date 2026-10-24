@@ -36,6 +36,7 @@ export const OPENAI_VOICES = ['marin', 'cedar', 'coral', 'sage', 'shimmer', 'ash
 
 export function defaultSettings() {
   return {
+    level: 'beginner',     // beginner | intermediate | advanced  (picked on the welcome screen, changeable in settings)
     tutor: 'priya',        // priya | arun
     voice: '',             // empty = tutor's default voice
     speed: 'normal',       // normal | slow
@@ -123,7 +124,7 @@ export function computeState(data, cfg, extra = {}) {
 }
 
 const SETTINGS_ALLOWED = {
-  tutor: ['priya', 'arun'], speed: ['normal', 'slow'], patience: ['fast', 'normal', 'slow'], audioMode: ['earphone', 'speaker'],
+  level: ['beginner', 'intermediate', 'advanced'], tutor: ['priya', 'arun'], speed: ['normal', 'slow'], patience: ['fast', 'normal', 'slow'], audioMode: ['earphone', 'speaker'],
   micMode: ['auto', 'ptt'], tamilHelp: ['more', 'normal', 'less'], captions: ['thanglish', 'tamil'],
 };
 const VOICES = ['', ...GEMINI_VOICES, ...OPENAI_VOICES];

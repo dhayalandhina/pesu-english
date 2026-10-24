@@ -13,6 +13,35 @@ const stripStress = (s) => String(s).replace(/[[\]]/g, '');
 export function lessonById(id) { return LESSONS.find((l) => l.id === Number(id)) || null; }
 export function sceneById(id) { return SCENES.find((s) => s.id === id) || null; }
 
+export const LEVELS_INFO = {
+  beginner: { name: 'Beginner', tg: 'Aarambam', words: 'basic' },
+  intermediate: { name: 'Intermediate', tg: 'Nadu level', words: 'medium' },
+  advanced: { name: 'Advanced', tg: 'Mel level', words: 'advanced' },
+};
+export const levelOf = (data) => (LEVELS_INFO[data?.settings?.level] ? data.settings.level : 'beginner');
+
+function levelBlock(level) {
+  if (level === 'advanced') {
+    return `HIS LEVEL: ADVANCED (he chose this). He can hold a conversation; he wants to sound natural and polished.
+- Speak at a natural pace with normal everyday vocabulary, idioms and phrasal verbs; explain a new expression briefly when you use one.
+- Ask open questions that need opinions, reasons and stories ("Why do you think...", "Tell me about a time..."). Expect answers of several sentences; nudge him to say more.
+- Correct subtler mistakes too: articles, prepositions, tense choice, word stress, unnatural word order. Still one correction per turn.
+- Tamil only if he asks or is truly stuck. Teach one useful advanced word or phrase every few turns and get him to use it.`;
+  }
+  if (level === 'intermediate') {
+    return `HIS LEVEL: INTERMEDIATE (he chose this). He understands most things and can speak in short sentences, with mistakes.
+- Speak clearly at a near-normal pace with everyday vocabulary; add a slightly harder word now and then and check he got it.
+- Ask follow-up questions so he speaks in two or three sentences, not one word. Encourage past and future tenses.
+- Correct grammar and word-choice mistakes (one per turn), and recast politely.
+- Tamil help only when he asks or is stuck; keep it to one short line.`;
+  }
+  return `HIS LEVEL: BEGINNER (he chose this). He knows basic words and understands simple English, but speaking is hard for him.
+- Use the simplest everyday words and very short sentences. Speak slowly. One idea, one question at a time.
+- Accept one-word or broken answers warmly, then give him the full simple sentence to repeat.
+- Correct only mistakes that hurt meaning; ignore small slips. Lots of encouragement.
+- Give Tamil help readily when he is stuck, one short line, then back to English.`;
+}
+
 function memoryBlock(data) {
   const m = data.memory || {};
   const facts = (m.facts || []).slice(0, 15);
@@ -103,6 +132,8 @@ ABOUT ${p.name.toUpperCase()}
 - Understands simple spoken English but is a beginner at speaking (around CEFR A1 to A2). He wants to speak fluently with clear pronunciation and to write correctly.
 ${memoryBlock(data)}
 
+${levelBlock(levelOf(data))}
+
 HOW TO TALK
 - This is a spoken call. Never use lists, headings, emojis or markdown, and never read out symbols.
 - Keep each turn short: usually one to three short sentences, then stop and let him speak. He should talk more than you.
@@ -186,7 +217,7 @@ Teacher's words: "${clean(context).slice(0, 400)}"
 The question to answer: "${clean(question).slice(0, 200)}"
 Give:
 1. "qTa": the question's meaning in simple spoken Tamil (Tamil script), polite "neenga" form as a teacher speaks to him. "qTg": the same in Thanglish (Tamil written in English letters, like "Neenga neththu enna pannineenga?").
-2. "answer": one short, natural, correct English answer he could say (4 to 12 words, first person, simple words; use the known facts when they fit, otherwise something ordinary and believable).
+2. "answer": one natural, correct English answer he could say (${levelOf(data) === 'advanced' ? '12 to 22 words, natural everyday vocabulary, may be two sentences' : levelOf(data) === 'intermediate' ? '8 to 14 words, everyday words, one or two sentences' : '4 to 10 words, the simplest words, one sentence'}; first person; use the known facts when they fit, otherwise something ordinary and believable).
 3. "ta": that answer's meaning in simple spoken Tamil script (everyday words, not bookish). "tg": the same in Thanglish (like "Naan mobile kadai-la velai paakkuren.").
 Return only JSON: {"qTa": "...", "qTg": "...", "answer": "...", "ta": "...", "tg": "..."}`;
 }
@@ -194,7 +225,9 @@ Return only JSON: {"qTa": "...", "qTg": "...", "answer": "...", "ta": "...", "tg
 export function checkPrompt(data, items) {
   const name = clean(data.profile?.name) || 'Dinesh';
   const list = items.map((it, i) => `${i + 1}. ${it.context ? `(teacher had said: "${clean(it.context).slice(0, 200)}") ` : ''}he said: "${clean(it.text).slice(0, 400)}"`).join('\n');
-  return `You check a beginner English learner's spoken sentences during a live practice call. The learner is ${name}, a Tamil speaker around A1 to A2 level.
+  const lvl = levelOf(data);
+  const strict = lvl === 'advanced' ? 'He is at an advanced level: also flag articles, prepositions, tense choice and unnatural phrasing.' : lvl === 'intermediate' ? 'He is intermediate: flag grammar and word-choice mistakes, not tiny slips.' : 'He is a beginner: flag only mistakes that hurt meaning or sound clearly wrong; let small slips go.';
+  return `You check an English learner's spoken sentences during a live practice call. The learner is ${name}, a Tamil speaker. ${strict}
 His sentences come from speech recognition, so ignore punctuation, capital letters, filler words (um, ah), repeated words and small recognition slips. Only flag real language mistakes a teacher would fix: wrong tense or verb form, missing or wrong article, wrong preposition, wrong word order, a wrong word, or Indian-English phrasing (for example "myself Dinesh", "I am having a doubt", "do the needful", "revert back", "discuss about"). Do not flag natural casual speech or short answers that are fine in conversation.
 If a sentence is in Tamil (or Thanglish), give the natural English way to say it, with kind "tamil".
 
@@ -208,11 +241,12 @@ Return only JSON in exactly this shape:
 
 export function summaryPrompt(data, info) {
   const name = clean(data.profile?.name) || 'Dinesh';
+  const level = levelOf(data);
   const m = data.memory || {};
   const modeDesc = info.mode === 'lesson' ? `Course Day ${info.day}: "${info.lessonTitle}"`
     : info.mode === 'role' ? `Role-play: ${info.sceneTitle}`
       : info.mode === 'doubt' ? 'Doubt-clearing' : 'Free conversation';
-  return `You write the end-of-call report for an English speaking practice app. The learner is ${name}, a Tamil speaker who is a beginner in spoken English.
+  return `You write the end-of-call report for an English speaking practice app. The learner is ${name}, a Tamil speaker at ${level} level in spoken English (his own choice); judge "didWell" and "fixThese" against that level.
 Call type: ${modeDesc}. Length: ${info.minutes} minutes.
 
 Known before this call:

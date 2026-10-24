@@ -69,6 +69,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = [];
 const check = (name, ok, extra = '') => { results.push({ name, ok }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? `  (${extra})` : ''}`); };
 const stats = async (port) => (await fetch(`http://127.0.0.1:${port}/__stats`)).json();
+// go to a screen: through the hamburger menu on phones, the nav row elsewhere
+async function nav(page, to) {
+  if (await page.isVisible('.burger')) { await page.click('.burger'); await page.click(`#menu .mitem[data-to="${to}"]`); }
+  else await page.click(`.navs [data-to="${to}"]`);
+}
 async function waitFor(fn, ms, step = 200) {
   const end = Date.now() + ms;
   while (Date.now() < end) { try { const v = await fn(); if (v) return v; } catch { /* retry */ } await sleep(step); }
@@ -143,7 +148,7 @@ try {
   check('saved transcript keeps spoken order (his words before the answer, though they arrived later)', iMe >= 0 && iTu > iMe, tr.map((x) => x.who).join(','));
   const data = await page.evaluate(() => JSON.parse(localStorage.getItem('pesu-data-v1')));
   check('progress, memory, notebook saved in the phone', data.progress.daysDone['1'] && data.memory.facts.length > 0 && data.notebook.length > 0 && data.sessions.length === 1);
-  await page.click('[data-act="go"][data-to="settings"]');
+  await nav(page, 'settings');
   await page.waitForSelector('[data-act="backup"]');
   const settingsText = await page.textContent('main');
   check('settings show OpenAI key + OpenAI voices', /OpenAI API key/.test(settingsText) && /gpt-realtime-2\.1-mini/.test(settingsText) && !!(await page.$('[data-k="voice"][data-v="coral"]')));
@@ -187,11 +192,11 @@ try {
   check('Mac: report card', /Day 1 complete/.test(await p2.textContent('.stamp')));
 
   // push-to-talk
-  await p2.click('[data-act="go"][data-to="settings"]');
+  await nav(p2, 'settings');
   await p2.waitForSelector('.seg');
   await p2.click('[data-act="set"][data-k="micMode"][data-v="ptt"]');
   await sleep(300);
-  await p2.click('[data-act="go"][data-to="home"]');
+  await nav(p2, 'home');
   await p2.waitForSelector('.hero');
   await p2.click('.mode[data-act="start"][data-mode="free"]');
   await p2.waitForSelector('#ptt');

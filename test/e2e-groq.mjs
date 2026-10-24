@@ -34,6 +34,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = [];
 const check = (name, ok, extra = '') => { results.push({ name, ok }); console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${extra ? `  (${extra})` : ''}`); };
 const stats = async () => (await fetch(`http://127.0.0.1:${MOCK}/__stats`)).json();
+// go to a screen: through the hamburger menu on phones, the nav row elsewhere
+async function nav(page, to) {
+  if (await page.isVisible('.burger')) { await page.click('.burger'); await page.click(`#menu .mitem[data-to="${to}"]`); }
+  else await page.click(`.navs [data-to="${to}"]`);
+}
 async function waitFor(fn, ms, step = 200) {
   const end = Date.now() + ms;
   while (Date.now() < end) { try { const v = await fn(); if (v) return v; } catch { /* retry */ } await sleep(step); }
@@ -111,7 +116,7 @@ try {
   await page.click('.hang');
   await page.waitForSelector('.stamp', { timeout: 30000 });
   check('report card + Day 1 complete', /Day 1 complete/.test(await page.textContent('.stamp')));
-  await page.click('[data-act="go"][data-to="settings"]');
+  await nav(page, 'settings');
   await page.waitForSelector('[data-act="backup"]');
   check('settings show Groq key + phone voice', /Groq API key/.test(await page.textContent('main')) && /Phone-oda voice/.test(await page.textContent('main')));
   const real = errors.filter((e) => !/status of 401/.test(e));

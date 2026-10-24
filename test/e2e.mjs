@@ -58,6 +58,11 @@ srv.stdout.on('data', (d) => { srvLog += d; });
 srv.stderr.on('data', (d) => { srvLog += d; });
 
 const mockStats = async () => (await fetch(`http://127.0.0.1:${MOCK}/__stats`)).json();
+// go to a screen: through the hamburger menu on phones, the nav row elsewhere
+async function nav(page, to) {
+  if (await page.isVisible('.burger')) { await page.click('.burger'); await page.click(`#menu .mitem[data-to="${to}"]`); }
+  else await page.click(`.navs [data-to="${to}"]`);
+}
 async function waitFor(fn, ms, step = 200) {
   const end = Date.now() + ms;
   while (Date.now() < end) { try { const v = await fn(); if (v) return v; } catch { /* retry */ } await sleep(step); }
@@ -146,11 +151,11 @@ try {
   const files = fs.readdirSync(path.join(DATA, 'sessions'));
   check('transcript file saved', files.length === 1);
 
-  await page.click('[data-act="go"][data-to="progress"]');
+  await nav(page, 'progress');
   await page.waitForSelector('.grid30');
   await sleep(300);
   await page.screenshot({ path: `${OUT}/07-progress.png`, fullPage: true });
-  await page.click('[data-act="go"][data-to="settings"]');
+  await nav(page, 'settings');
   await page.waitForSelector('.seg');
   await page.click('[data-act="set"][data-k="micMode"][data-v="ptt"]');
   await sleep(300);
