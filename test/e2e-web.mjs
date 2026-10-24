@@ -86,12 +86,13 @@ try {
   // ----- call straight from the phone page -----
   await page.click('.hero [data-act="start"]');
   await page.waitForSelector('#call-av svg');
-  check('tutor greets first (direct Live API from the browser); repeat sentence shows', !!(await waitFor(async () => /Hi, I am Dinesh/.test(await page.textContent('#captions')), 15000)));
+  check('tutor greets with a question; screen shows question + sample answer (Tamil + Thanglish)', !!(await waitFor(async () => { const T = await page.textContent('#captions'); return /How are you today\?/.test(T) && /I am fine, thank you\./.test(T) && /Naan nalla irukken/.test(T); }, 20000)));
   check('speaking state while tutor audio plays', !!(await waitFor(async () => (await page.getAttribute('#status', 'data-s')) === 'speaking', 8000, 50)));
   await sleep(400);
   await page.screenshot({ path: `${OUT}/w03-call.png` });
   check('learner speech reached the tutor; its answer\'s repeat sentence shows', !!(await waitFor(async () => /Yesterday I went to the market/.test(await page.textContent('#captions')), 25000)));
   check('Tamil meaning (Thanglish) under the sentence', !!(await waitFor(async () => /Neththu naan market-ku ponen/.test(await page.textContent('#captions .meaning')), 15000)));
+  check('word meanings under the sentence', !!(await waitFor(async () => /market = sandhai/.test(await page.textContent('#captions .wchips')), 15000)));
   check('correction card on the whiteboard (browser -> text model)', !!(await waitFor(async () => (await page.$$('#fixes .fix-card')).length > 0, 25000)));
   await page.click('[data-act="chip"][data-k="puriyala"]');
   check('"Puriyala" sent to the tutor', !!(await waitFor(async () => (await mockStats()).texts.some((t) => t.includes("didn't understand")), 6000)));
@@ -126,6 +127,22 @@ try {
   check('key removed from the address bar after setup', !(await p2.evaluate(() => location.hash)));
   await p2.click('[data-act="finish-welcome"]');
   await p2.waitForSelector('.hero');
+  // words + tips screens
+  await p2.click('[data-act="go"][data-to="words"]');
+  await p2.waitForSelector('.wcard');
+  const wtext = await p2.textContent('main');
+  check('Words screen: 3 levels, Tamil script + Thanglish + example', /Basic/.test(wtext) && /Medium/.test(wtext) && /Advanced/.test(wtext) && /\u0BB5\u0BA3\u0B95\u0BCD\u0B95\u0BAE\u0BCD/.test(wtext) && /vanakkam/.test(wtext) && (await p2.$$('.wcard')).length > 100, `${(await p2.$$('.wcard')).length} cards`);
+  await p2.click('[data-act="words-level"][data-v="advanced"]');
+  await p2.waitForSelector('.wcard');
+  check('Words screen: Advanced level', /achieve/.test(await p2.textContent('main')));
+  await p2.fill('#words-q', 'neththu');
+  await sleep(300);
+  check('Words search by Thanglish meaning', /yesterday/.test(await p2.textContent('.wcard')));
+  await p2.screenshot({ path: `${OUT}/w08-words.png`, fullPage: true });
+  await p2.click('[data-act="go"][data-to="tips"]');
+  await p2.waitForSelector('.ticks');
+  check('Tips screen: how to learn English easily', /Dhinamum/.test(await p2.textContent('main')) && (await p2.$$('.ticks li')).length >= 30);
+  await p2.screenshot({ path: `${OUT}/w09-tips.png`, fullPage: true });
   await p2.click('[data-act="go"][data-to="settings"]');
   await p2.waitForSelector('#restore-file', { state: 'attached' });
   await p2.setInputFiles('#restore-file', dlPath);

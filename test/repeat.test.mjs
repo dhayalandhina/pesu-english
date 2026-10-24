@@ -1,5 +1,5 @@
 // Which sentence does the call screen show? (node test/repeat.test.mjs)
-import { repeatTarget } from '../public/repeat.js';
+import { repeatTarget, questionOf } from '../public/repeat.js';
 
 const cases = [
   ['Sure, Dinesh. Say: “I’m not learning English.” Please repeat after me.', 'I’m not learning English.'],
@@ -26,4 +26,22 @@ for (const [text, want] of cases) {
   else console.log(`FAIL: ${JSON.stringify(text)}\n  want ${JSON.stringify(want)}\n  got  ${JSON.stringify(got)}`);
 }
 console.log(`repeat: ${ok}/${cases.length} ok`);
-process.exit(ok === cases.length ? 0 : 1);
+const qcases = [
+  ['Hi Dinesh! I am Priya. How are you today?', 'How are you today?'],
+  ['Good! Now tell me, what did you do yesterday?', 'Now tell me, what did you do yesterday?'],
+  ['Repeat after me: “I live in Coimbatore.” Can you say it?', ''],
+  ['Can you say that again?', ''],
+  ['Okay? Let us start. What is your name?', 'What is your name?'],
+  ['Repeat after me. Yesterday I went to the market. Then tell me what you bought.', ''],
+  ['Nice. Where do you work, Dinesh? And what time do you start?', 'And what time do you start?'],
+  ['Sari, puriyudhaa? Say “I am fine.”', ''],
+  ['Oh, you went to the market yesterday? What did you buy there?', 'What did you buy there?'],
+];
+let qok = 0;
+for (const [text, want] of qcases) {
+  const got = questionOf(text);
+  if (got === want) qok++;
+  else console.log(`FAIL q: ${JSON.stringify(text)}\n  want ${JSON.stringify(want)}\n  got  ${JSON.stringify(got)}`);
+}
+console.log(`question: ${qok}/${qcases.length} ok`);
+process.exit(ok === cases.length && qok === qcases.length ? 0 : 1);

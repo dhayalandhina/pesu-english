@@ -40,12 +40,15 @@ http.createServer((req, res) => {
         content = JSON.stringify({ items: [{ n: 1, said: 'Yesterday I go to market', better: 'Yesterday I went to the market.', tip: "Neththu nadandhadhu-ku 'went' (past)", kind: 'grammar' }] });
       } else if (all.includes('end-of-call report')) {
         content = JSON.stringify({ summary: 'Indraiku past tense practice pannom.', didWell: ['Clear ah pesineenga'], fixThese: [{ said: 'Yesterday I go to market', better: 'Yesterday I went to the market.', tip: "Neththu = past, 'went'" }], newWords: [{ word: 'vegetables', meaning: 'kaaikari' }], nextTime: "'-ed' verbs practice.", facts: ['Goes to the market'], mistakePatterns: ['Present tense for past'], level: 'A1', lessonCovered: true, memoryNote: 'Past tense next time.' });
+      } else if (all.includes('The question to answer')) {
+        stats.hints = (stats.hints || 0) + 1;
+        content = JSON.stringify({ qTa: 'இன்று எப்படி இருக்கீங்க?', qTg: 'Innaiku eppadi irukkeenga?', answer: 'I am fine, thank you.', ta: 'நான் நல்லா இருக்கேன், நன்றி.', tg: 'Naan nalla irukken, nandri.' });
       } else if (all.includes('Translate this English sentence')) {
-        content = JSON.stringify({ meaning: /market/.test(all.split('Sentence:')[1] || '') ? 'Neththu naan market-ku ponen.' : 'Vanakkam, naan Dinesh.' });
+        content = JSON.stringify({ meaning: /market/.test(all.split('Sentence:')[1] || '') ? 'Neththu naan market-ku ponen.' : 'Vanakkam, naan Dinesh.', words: [{ w: 'market', ta: 'சந்தை', tg: 'sandhai' }, { w: 'yesterday', ta: 'நேற்று', tg: 'neththu' }] });
       } else {
         const last = (j.messages || []).filter((m) => m.role === 'user').at(-1)?.content || '';
         stats.texts.push(last.slice(0, 120));
-        content = last.includes('call just connected') ? 'Hi Dinesh! I am Priya. Repeat after me: "Hi, I am Dinesh."'
+        content = last.includes('call just connected') ? 'Hi Dinesh! I am Priya. How are you today?'
           : last.includes("didn't understand") ? 'Okay. Let me say it slowly. Yesterday I went to the market.'
             : 'Oh, you went to the market yesterday? Repeat after me: "Yesterday I went to the market."';
       }

@@ -28,3 +28,22 @@ export function repeatTarget(text) {
   for (const m of t.matchAll(CUE_TAIL)) if (/^[A-Z]/.test(m[1]) && !TAMIL.test(m[1])) last = tidy(m[1]);
   return last;
 }
+
+// The question the tutor wants him to answer: the last question in her words, unless it is really a
+// "say this" request ("Can you say 'I went'?") or a throwaway check ("Okay?", "Ready?").
+const NOT_A_QUESTION = /^(okay|ok|ready|right|yes|alright|got it|understood|shall we|see)\b/i;
+const SAY_REQUEST = /\b(say|repeat|try|read)\b/i;
+export function questionOf(text) {
+  const t = String(text || '').replace(/\s+/g, ' ');
+  let last = '';
+  for (const m of t.matchAll(/([^.!?]+\?)/g)) {
+    const q = tidy(m[1]);
+    const words = q.split(' ').length;
+    if (words < 3 || words > 20 || TAMIL.test(q)) continue;
+    if (NOT_A_QUESTION.test(q)) continue;
+    if (/[“”"]/.test(q) && SAY_REQUEST.test(q)) continue;      // Can you say "..."?
+    if (/^(can|could|will|would) you (please )?(say|repeat|try)/i.test(q)) continue;
+    last = q;
+  }
+  return last;
+}

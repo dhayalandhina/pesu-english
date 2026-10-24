@@ -104,8 +104,8 @@ try {
   // ----- call -----
   await page.click('.hero [data-act="start"]');
   await page.waitForSelector('#call-av svg');
-  const greeted = await waitFor(async () => /Hi, I am Dinesh/.test(await page.textContent('#captions .repeat')), 15000);
-  check('tutor greets first (kickoff); screen shows the sentence to repeat', !!greeted);
+  const greeted = await waitFor(async () => { const T = await page.textContent('#captions'); return /How are you today\?/.test(T) && /I am fine, thank you\./.test(T) && /Naan nalla irukken/.test(T); }, 20000);
+  check('tutor greets with a question; screen shows the question + a sample answer (Tamil + Thanglish)', !!greeted);
   const spoke = await waitFor(async () => (await page.getAttribute('#status', 'data-s')) === 'speaking', 8000, 50);
   check('status shows speaking while tutor audio plays', !!spoke);
   await sleep(500);
@@ -118,6 +118,7 @@ try {
   const userLine = await waitFor(async () => /Yesterday I went to the market/.test(await page.textContent('#captions .repeat')), 40000);
   check('learner speech reached the tutor (fake mic -> server -> live); its answer\'s repeat sentence shows', !!userLine);
   check('Tamil meaning (Thanglish) under the sentence', !!(await waitFor(async () => /Neththu naan market-ku ponen/.test(await page.textContent('#captions .meaning')), 15000)));
+  check('word meanings under the sentence (word list + AI)', !!(await waitFor(async () => { const T = await page.textContent('#captions .wchips'); return /market = sandhai/.test(T) && /yesterday = neththu/.test(T); }, 15000)), await page.textContent('#captions .wchips'));
   const fix = await waitFor(async () => (await page.$$('#fixes .fix-card')).length > 0, 25000);
   check('correction card appears on the whiteboard', !!fix);
   await page.screenshot({ path: `${OUT}/05-call-fix.png` });
@@ -169,7 +170,7 @@ try {
   await p2.screenshot({ path: `${OUT}/09-home-dark-narrow.png`, fullPage: true });
   await p2.click('.mode[data-act="start"][data-mode="free"]');
   await p2.waitForSelector('#ptt');
-  await waitFor(async () => /Hi, I am Dinesh/.test(await p2.textContent('#captions')), 15000);
+  await waitFor(async () => /How are you today/.test(await p2.textContent('#captions')), 15000);
   const before = (await mockStats()).audioChunks;
   await sleep(1500);
   const idle = (await mockStats()).audioChunks - before;

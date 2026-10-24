@@ -4,7 +4,7 @@
 //   genJSON(models, prompt, opts) -> Promise<{model, data}>
 //   store: { data, cfg, save(), saveSession(id, record) }
 //   out:   { json(obj), audio(base64Pcm24k), close() }   (towards the call screen)
-import { buildSystemInstruction, kickoffText, chipText, checkPrompt, summaryPrompt, meaningPrompt, lessonById, sceneById, TUTORS } from './prompts.js';
+import { buildSystemInstruction, kickoffText, chipText, checkPrompt, summaryPrompt, meaningPrompt, hintPrompt, lessonById, sceneById, TUTORS } from './prompts.js';
 import { classifyError, clean, words, dkey } from './util.js';
 import { GEMINI_VOICES, OPENAI_VOICES } from './state.js';
 
@@ -62,6 +62,7 @@ export class TutorBridge {
     if (!m || typeof m !== 'object') return;
     if (m.t === 'end') { this.end('user'); return; }
     if (m.t === 'meaning') { this.meaning(m.text); return; }
+    if (m.t === 'hint') { this.hint(m.question, m.context); return; }
     if (!this.session || this.ending) return;
     try {
       if (m.t === 'text') {
@@ -75,6 +76,28 @@ export class TutorBridge {
 
   clientClosed() { if (!this.ending) this.end('window-closed'); }
 
+  // the tutor asked a question: show what it means and a sample answer (with meaning), once per question
+  async hint(question, context) {
+    const q = clean(question).slice(0, 200);
+    if (!q || this.ending) return;
+    if (!this.hints) this.hints = new Map();
+    let h = this.hints.get(q);
+    if (h === undefined) {
+      this.hints.set(q, null);
+      try {
+        const { data } = await this.genJSON(this.store.cfg.meaningModels || this.store.cfg.checkModels, hintPrompt(this.store.data, q, context), { temperature: 0.3, maxOutputTokens: 400 });
+        const f = (k, n) => clean(data?.[k]).replace(/^["'“]+|["'”]+$/g, '').slice(0, n);
+        h = { question: q, qTa: f('qTa', 160), qTg: f('qTg', 160).replace(/[\u0B80-\u0BFF]/g, ''), answer: f('answer', 200), ta: f('ta', 200), tg: f('tg', 200).replace(/[\u0B80-\u0BFF]/g, '') };
+        if (!h.answer) h = null;
+      } catch (e) {
+        this.log('hint failed:', classifyError(e), e?.message || '');
+        h = null;
+      }
+      this.hints.set(q, h);
+    }
+    if (h && !this.ending) this.out.json({ t: 'hint', ...h });
+  }
+
   // Tamil meaning (in English letters) of the sentence he is asked to repeat; each sentence asked once per call
   async meaning(text) {
     const s = clean(text).slice(0, 300);
@@ -86,13 +109,17 @@ export class TutorBridge {
       try {
         const { data } = await this.genJSON(this.store.cfg.meaningModels || this.store.cfg.checkModels, meaningPrompt(s), { temperature: 0.2, maxOutputTokens: 256 });
         m = clean(data?.meaning).replace(/^["'“]+|["'”]+$/g, '').slice(0, 200);
+        const words = (Array.isArray(data?.words) ? data.words : []).slice(0, 4)
+          .map((w) => ({ w: clean(w?.w).toLowerCase().slice(0, 40), ta: clean(w?.ta).slice(0, 60), tg: clean(w?.tg).replace(/[\u0B80-\u0BFF]/g, '').slice(0, 60) }))
+          .filter((w) => w.w && (w.ta || w.tg));
+        this.meanings.set(`${s}#words`, words);
       } catch (e) {
         this.log('meaning failed:', classifyError(e), e?.message || '');
         m = '';
       }
       this.meanings.set(s, m);
     }
-    if (m && !this.ending) this.out.json({ t: 'meaning', text: s, meaning: m });
+    if (m && !this.ending) this.out.json({ t: 'meaning', text: s, meaning: m, words: this.meanings.get(`${s}#words`) || [] });
   }
 
   instruct(text) {

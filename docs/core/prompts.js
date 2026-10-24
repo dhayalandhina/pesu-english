@@ -171,8 +171,24 @@ Examples (translate the meaning, don't copy these):
 "What did you buy there?" -> "Anga enna vaangineenga?"
 "My brother works in a shop." -> "En anna oru kadai-la velai paakkuraaru."
 "Nice to meet you." -> "Ungala sandhichadhula santhosham."
-Return only JSON: {"meaning": "..."}
+Also give the 2 to 4 most useful words of the sentence (not names, not "I/you/the") with their meaning, "ta" in Tamil script and "tg" in Thanglish.
+Return only JSON: {"meaning": "...", "words": [{"w": "market", "ta": "சந்தை", "tg": "sandhai"}]}
 Sentence: "${clean(sentence).slice(0, 300)}"`;
+}
+
+// the tutor asked a question: what it means, and one simple answer he could give (with its meaning)
+export function hintPrompt(data, question, context) {
+  const name = clean(data.profile?.name) || 'Dinesh';
+  const city = clean(data.profile?.city) || 'Coimbatore';
+  const facts = (data.memory?.facts || []).slice(0, 8);
+  return `An English teacher is talking with ${name}, a beginner (A1-A2) Tamil speaker from ${city}.${facts.length ? ` Things known about him: ${facts.join('; ')}.` : ''}
+Teacher's words: "${clean(context).slice(0, 400)}"
+The question to answer: "${clean(question).slice(0, 200)}"
+Give:
+1. "qTa": the question's meaning in simple spoken Tamil (Tamil script), polite "neenga" form as a teacher speaks to him. "qTg": the same in Thanglish (Tamil written in English letters, like "Neenga neththu enna pannineenga?").
+2. "answer": one short, natural, correct English answer he could say (4 to 12 words, first person, simple words; use the known facts when they fit, otherwise something ordinary and believable).
+3. "ta": that answer's meaning in simple spoken Tamil script (everyday words, not bookish). "tg": the same in Thanglish (like "Naan mobile kadai-la velai paakkuren.").
+Return only JSON: {"qTa": "...", "qTg": "...", "answer": "...", "ta": "...", "tg": "..."}`;
 }
 
 export function checkPrompt(data, items) {

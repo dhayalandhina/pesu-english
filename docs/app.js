@@ -3,7 +3,8 @@ import { LESSONS, SCENES, TIPS, WEEKS } from './lessons.js';
 import { Avatar } from './avatar.js';
 import { Call } from './call.js';
 import { toThanglish } from './translit.js';
-import { repeatTarget } from './repeat.js';
+import { repeatTarget, questionOf } from './repeat.js';
+import { LEVELS, DICT, TIPS_PAGE } from './words.js';
 import { backend } from './backend.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -56,6 +57,8 @@ let lastReport = null;
 let toastT = 0;
 let roleOpen = false;
 let resetAsk = false;
+let wordsLevel = 'basic';
+let wordsQuery = '';
 
 // ---------------- utils ----------------
 function toast(msg) {
@@ -101,6 +104,8 @@ const IC = {
   home: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>',
   flame: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 5 5.5 5 11a5 5 0 0 1-10 0c0-2.5 1.2-4 2.5-5 .2 1.8 1 3 2.5 3.2C11 8 11 5 12 2z"/></svg>',
   play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
+  book: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h5v18H6a2 2 0 0 1-2-2zM13 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5z"/></svg>',
+  bulb: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.6.6 1 1.4 1 2.5h6c0-1.1.4-1.9 1-2.5A6 6 0 0 0 12 3z"/></svg>',
 };
 
 // ---------------- presence: keeps the local server alive while this window is open ----------------
@@ -133,7 +138,7 @@ function topbar() {
       <span class="chip" title="Course day">Day <b class="num">${p.allDone ? 30 : p.currentDay}</b> of 30</span>
       <span class="chip ${p.streak ? 'hot' : ''}" title="Thodarndhu practice panna naatkal">${IC.flame}<b class="num">${p.streak}</b> naal</span>
     </div>
-    <nav class="navs">${nav('home', 'Home', IC.home)}${nav('progress', 'Progress', IC.chart)}${nav('settings', 'Settings', IC.gear)}</nav>
+    <nav class="navs">${nav('home', 'Home', IC.home)}${nav('words', 'Words', IC.book)}${nav('tips', 'Tips', IC.bulb)}${nav('progress', 'Progress', IC.chart)}${nav('settings', 'Settings', IC.gear)}</nav>
   </header>`;
 }
 
@@ -156,6 +161,8 @@ function render() {
   if (screen === 'welcome') { app.innerHTML = viewWelcome(); mountAvatar('#wel-av'); return; }
   if (screen === 'report') { app.innerHTML = topbar() + viewReport(); return; }
   if (screen === 'progress') { app.innerHTML = topbar() + viewProgress(); return; }
+  if (screen === 'words') { app.innerHTML = topbar() + viewWords(); return; }
+  if (screen === 'tips') { app.innerHTML = topbar() + viewTips(); return; }
   if (screen === 'settings') { app.innerHTML = topbar() + viewSettings(); return; }
   app.innerHTML = topbar() + viewHome();
   mountAvatar('#home-av');
@@ -256,7 +263,64 @@ function viewHome() {
         <button class="btn quiet" data-act="mictest" id="mictest-btn">${IC.mic} Mic test</button>
       </div>
     </section>
+    <section class="grid2">
+      <button class="mode" data-act="go" data-to="words"><b>${IC.book} Words · 371</b><span>Basic, Medium, Advanced words — Tamil-la artham, example, kekka button</span></button>
+      <button class="mode" data-act="go" data-to="tips"><b>${IC.bulb} Tips</b><span>English-a easy-ah eppadi kathukkalaam — daily plan, pesuradhu, uchcharippu</span></button>
+    </section>
     <p class="pen tip-line">${esc(tip)}</p>
+  </main>`;
+}
+
+// ---------------- words ----------------
+const STOP = new Set(['i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'our', 'their', 'a', 'an', 'the', 'is', 'am', 'are', 'was', 'were', 'be', 'to', 'of', 'in', 'on', 'at', 'for', 'and', 'or', 'but', 'this', 'that', 'there', 'here', 'what', 'where', 'when', 'how', 'who', 'why', 'not', 'do', 'does', 'did', 'have', 'has', 'had', 'can', 'will', 'would', 'should', 'some', 'any', 'very', 'so', 'too', 'with', 'from', 'by', 'about', 'up', 'down', 'out', 'into', 'as', 'if', 'then', 'than', 'just', 'also', 'please']);
+// words of a sentence that are in the word lists (two-word ones like "wake up" first)
+function dictWords(sentence) {
+  const toks = String(sentence || '').toLowerCase().replace(/[^a-z'\s-]/g, ' ').split(/\s+/).filter(Boolean).map((t) => t.replace(/^'+|'+$/g, ''));
+  const out = [];
+  const seen = new Set();
+  for (let i = 0; i < toks.length; i++) {
+    const two = toks[i + 1] ? `${toks[i]} ${toks[i + 1]}` : '';
+    if (two && DICT.has(two) && !seen.has(two)) { seen.add(two); out.push([two, ...DICT.get(two)]); i++; continue; }
+    let w = toks[i];
+    if (!DICT.has(w)) { const base = w.replace(/(ies)$/, 'y').replace(/(es|s|ed|ing)$/, ''); if (DICT.has(base)) w = base; }
+    if (STOP.has(w) || !DICT.has(w) || seen.has(w)) continue;
+    seen.add(w);
+    out.push([w, ...DICT.get(w)]);
+  }
+  return out.slice(0, 6);
+}
+
+function wordCard(it) {
+  const [w, ta, tg, ex, em] = it;
+  return `<div class="wcard">
+    <div class="row sp"><b class="en wword">${esc(w)}</b><button class="lis" data-act="speak" data-t="${esc(w)}" aria-label="Kelunga">${IC.speaker}</button></div>
+    <div class="wmean"><span class="ta">${esc(ta)}</span><span class="tg">${esc(tg)}</span></div>
+    <div class="wex"><button class="lis sm" data-act="speak" data-t="${esc(ex)}" aria-label="Example kelunga">${IC.speaker}</button><span><span class="en">${esc(ex)}</span><br><span class="muted small">${esc(em)}</span></span></div>
+  </div>`;
+}
+
+function viewWords() {
+  const lvl = LEVELS.find((l) => l[0] === wordsLevel) || LEVELS[0];
+  const q = wordsQuery.trim().toLowerCase();
+  const groups = q
+    ? [{ g: `"${wordsQuery.trim()}" search`, items: LEVELS.flatMap((l) => l[2].flatMap((g) => g.items)).filter((it) => it[0].includes(q) || it[2].toLowerCase().includes(q) || it[1].includes(wordsQuery.trim())) }]
+    : lvl[2];
+  const total = (l) => l[2].reduce((n, g) => n + g.items.length, 0);
+  return `<main class="wrap stack">
+    <div class="row sp wrapline"><h1>Words</h1><span class="xs muted">Oru naalaiku 5 words podhum. Kettu, sollunga, 3 sentence-la use pannunga.</span></div>
+    <div class="seg" role="group">${LEVELS.map((l) => `<button type="button" data-act="words-level" data-v="${l[0]}" aria-pressed="${wordsLevel === l[0] && !q}">${l[1]} <small>${total(l)}</small></button>`).join('')}</div>
+    <input id="words-q" type="search" placeholder="Word thedunga (English / Thanglish / Tamil)" value="${esc(wordsQuery)}" autocomplete="off">
+    ${groups.map((g) => g.items.length ? `<section class="stack"><h2 class="wgroup">${esc(g.g)} <small class="muted">${g.items.length}</small></h2><div class="wgrid">${g.items.map(wordCard).join('')}</div></section>` : '').join('') || '<p class="empty">Andha word list-la illa. Teacher-kitta "Doubt kelunga" mode-la kelunga.</p>'}
+  </main>`;
+}
+
+// ---------------- tips ----------------
+function viewTips() {
+  return `<main class="narrow stack">
+    <h1>English-a easy-ah eppadi kathukkalaam</h1>
+    <p class="muted">Dhinamum konjam, aanaa thodarndhu. Indha tips ellaam Dinesh-kkaaga simple-ah.</p>
+    ${TIPS_PAGE.map((t) => `<section class="card stack"><h2>${esc(t.h)}</h2><ul class="ticks">${t.p.map((p) => `<li>${esc(p)}</li>`).join('')}</ul></section>`).join('')}
+    <button class="btn" data-act="go" data-to="home">Home</button>
   </main>`;
 }
 
@@ -317,7 +381,7 @@ function viewCall(mode, day, scene) {
           <span class="nametag">${esc(t.title)} · English teacher</span>
           <div class="self" id="self"><span class="ring" id="self-ring"></span><span class="initial">${esc(name().slice(0, 1).toUpperCase())}</span><video id="self-cam" playsinline muted hidden></video></div>
         </div>
-        <div class="captions" id="captions" aria-live="polite"><p class="cap-empty">Teacher "repeat pannunga" nu sollura sentence mattum inga varum.</p></div>
+        <div class="captions" id="captions" aria-live="polite"><p class="cap-empty">Teacher kekkura kelvi-kku answer-um, "repeat pannunga" nu sollura sentence-um inga varum.</p></div>
         <div class="err" id="call-err" hidden></div>
         <div class="controls">
           ${ptt
@@ -359,7 +423,7 @@ async function startCall(mode, day, scene) {
   const c = new Call({ mode, day, scene, settings: S.settings, socketFactory: (q) => backend.liveSocket(q), inRate: S.provider === 'openai' ? 24000 : 16000 });
   keepAwake(true);
   call = c;
-  callCtx = { mode, day, scene, lines: [], me: null, tu: null, started: 0, raf: 0, cam: null, muted: false, done: false };
+  callCtx = { mode, day, scene, lines: [], me: null, tu: null, started: 0, raf: 0, cam: null, muted: false, done: false, words: [], target: '', meaning: '', q: null };
   wireCall(c);
   avatar.levelSource = () => c.tutorLevel();
   avatar.userLevelSource = () => c.micLevel;
@@ -406,16 +470,39 @@ function wireCall(c) {
   c.addEventListener('out', (e) => {
     if (!callCtx.tu) { callCtx.tu = { who: 'tutor', text: '' }; callCtx.lines.push(callCtx.tu); }
     callCtx.tu.text += e.detail;
-    // the screen shows only what he should say back
+    // the screen shows only what he should say back: a sentence to repeat, and/or a question with a sample answer
     const t = repeatTarget(callCtx.tu.text);
     if (t && t !== callCtx.target) {
       callCtx.target = t;
       callCtx.meaning = '';
+      callCtx.words = dictWords(t);
       drawCaptions();
       if (call) call.meaning(t);
     }
+    const q = questionOf(callCtx.tu.text);
+    if (q && q !== (callCtx.q && callCtx.q.question)) {
+      callCtx.q = { question: q };
+      drawCaptions();
+      if (call) call.hint(q, callCtx.tu.text);
+    }
   });
-  c.addEventListener('turn', () => { callCtx.tu = null; });
+  c.addEventListener('turn', () => {
+    // a turn that only asks a question clears the old repeat sentence, and the other way round
+    const text = callCtx.tu ? callCtx.tu.text : '';
+    const t = repeatTarget(text);
+    const q = questionOf(text);
+    if (t || q) {
+      if (!t) { callCtx.target = ''; callCtx.meaning = ''; callCtx.words = []; }
+      if (!q) callCtx.q = null;
+      drawCaptions();
+    }
+    callCtx.tu = null;
+  });
+  c.addEventListener('hint', (e) => {
+    if (!callCtx || !callCtx.q || e.detail.question !== callCtx.q.question) return;
+    callCtx.q = { ...callCtx.q, ...e.detail };
+    drawCaptions();
+  });
   c.addEventListener('interrupted', () => { if (callCtx.tu) { callCtx.tu.text += ' …'; callCtx.tu = null; drawCaptions(); } });
   c.addEventListener('fix', (e) => addFixes(e.detail));
   c.addEventListener('meaning', (e) => {
@@ -424,18 +511,47 @@ function wireCall(c) {
     callCtx.meaning = e.detail.meaning;
     const m = $('#captions .meaning');
     if (m) { m.textContent = showText(callCtx.meaning); m.classList.remove('wait'); }
+    // the tutor's key words (from the AI) join the ones found in the word lists
+    for (const w of e.detail.words || []) {
+      const key = String(w.w || '').toLowerCase().trim();
+      if (key && !callCtx.words.some((x) => x[0] === key)) callCtx.words.push([key, w.ta, w.tg]);
+    }
+    const wc = $('#captions .wchips');
+    if (wc) wc.innerHTML = wordChips(callCtx.words);
   });
   c.addEventListener('error', (e) => showCallError(e.detail.kind || 'unknown', e.detail.detail));
 }
 
-// Only the sentence to say back (big), not everything the tutor says. Tap it: the tutor says it again slowly.
+// word = Tamil (Thanglish) chips under the sentence; tap one to hear the word
+const wordChips = (words) => words.map(([w, ta, tg]) => `<button class="wchip" data-act="speak" data-t="${esc(w)}"><b>${esc(w)}</b> = ${esc(tg || '')}${ta ? ` <span class="ta">${esc(ta)}</span>` : ''}</button>`).join('');
+
+// Only what he should say back: the sentence to repeat (big) and/or the tutor's question with a sample answer
+// in Tamil and Thanglish. Tap a sentence: the tutor says it again slowly.
 function drawCaptions() {
   const box = $('#captions');
-  if (!box || !callCtx || !callCtx.target) return;
-  const t = showText(callCtx.target);
-  const m = callCtx.meaning ? showText(callCtx.meaning) : '';
-  box.innerHTML = `<span class="label">Ippo neenga sollunga</span><button class="repeat" data-act="say" data-t="${esc(t)}" aria-label="${esc(tutor().name)} thirumba solla kelunga"><span>${esc(t)}</span>${IC.speaker}</button>
-    <p class="meaning ${m ? '' : 'wait'}">${m ? esc(m) : 'Artham varudhu…'}</p>`;
+  if (!box || !callCtx) return;
+  const parts = [];
+  if (callCtx.target) {
+    const t = showText(callCtx.target);
+    const m = callCtx.meaning ? showText(callCtx.meaning) : '';
+    parts.push(`<span class="label">Ippo neenga sollunga</span><button class="repeat" data-act="say" data-t="${esc(t)}" aria-label="${esc(tutor().name)} thirumba solla kelunga"><span>${esc(t)}</span>${IC.speaker}</button>
+      <p class="meaning ${m ? '' : 'wait'}">${m ? esc(m) : 'Artham varudhu…'}</p>
+      <div class="wchips">${wordChips(callCtx.words || [])}</div>`);
+  }
+  if (callCtx.q) {
+    const q = callCtx.q;
+    parts.push(`<div class="qblock">
+      <span class="label">Teacher kekkuraanga</span>
+      <p class="q"><span class="en">${esc(q.question)}</span>${q.qTg ? `<span class="qm">${esc(q.qTg)}${q.qTa ? ` · <span class="ta">${esc(q.qTa)}</span>` : ''}</span>` : ''}</p>
+      <span class="label">Ippadi sollalaam</span>
+      ${q.answer
+        ? `<button class="repeat ans" data-act="say" data-t="${esc(q.answer)}" aria-label="Answer kelunga"><span>${esc(q.answer)}</span>${IC.speaker}</button>
+           <p class="meaning">${esc(q.tg || '')}${q.ta ? ` · <span class="ta">${esc(q.ta)}</span>` : ''}</p>`
+        : '<p class="meaning wait">Answer varudhu…</p>'}
+    </div>`);
+  }
+  if (!parts.length) return;
+  box.innerHTML = parts.join('');
   const b = box.querySelector('.repeat');
   if (b) { b.classList.remove('new'); void b.offsetWidth; b.classList.add('new'); }
 }
@@ -644,6 +760,7 @@ const ACT = {
   go: (b) => go(b.dataset.to),
   start: (b) => startCall(b.dataset.mode, b.dataset.day ? Number(b.dataset.day) : undefined, b.dataset.scene),
   'toggle-role': () => { roleOpen = !roleOpen; render(); },
+  'words-level': (b) => { wordsLevel = b.dataset.v; wordsQuery = ''; render(); },
   mictest: () => toggleMicTest(),
   speak: (b) => { if (!speakLocal(b.dataset.t)) toast('Indha browser-la voice play aagala.'); },
   savekey: async () => {
@@ -727,6 +844,15 @@ document.addEventListener('click', (e) => {
   if (!f) return;
   e.preventDefault();
   Promise.resolve(f(b, e)).catch((err) => { console.error(err); toast('Edho problem. Thirumba try pannunga.'); });
+});
+
+document.addEventListener('input', (e) => {
+  if (e.target.id !== 'words-q') return;
+  wordsQuery = e.target.value;
+  const pos = e.target.selectionStart;
+  render();
+  const q = $('#words-q');
+  if (q) { q.focus(); try { q.setSelectionRange(pos, pos); } catch { /* ignore */ } }
 });
 
 document.addEventListener('change', async (e) => {

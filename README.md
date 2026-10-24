@@ -30,6 +30,10 @@ APK_KEYSTORE=<your .jks> APK_KS_PASS=<password> bash packaging/build-apk.sh dist
 
 Install: copy `Pesu-English.apk` to the phone → open it → allow "Install unknown apps" for that file manager/WhatsApp → Install.
 
+## What the call screen shows
+
+Not the whole conversation: only what he should say back. When the tutor says "Repeat after me: …" the sentence appears big with its Tamil meaning and the key words (Tamil + Thanglish); when she asks a question, the question's meaning and a sample answer (English + Tamil + Thanglish) appear. The **Words** screen has 371 words in three levels with Tamil script, Thanglish, an example and a listen button; **Tips** explains how to learn step by step.
+
 ## Phone setup (once)
 
 1. Open the hosted link on the phone (Chrome on Android, Safari on iPhone).

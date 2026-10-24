@@ -74,9 +74,12 @@ const server = http.createServer((req, res) => {
           lessonCovered: true,
           memoryNote: 'He went to the market yesterday; practise past tense next time.',
         };
+      } else if (prompt.includes('The question to answer')) {
+        stats.hints = (stats.hints || 0) + 1;
+        out = { qTa: 'இன்று எப்படி இருக்கீங்க?', qTg: 'Innaiku eppadi irukkeenga?', answer: 'I am fine, thank you.', ta: 'நான் நல்லா இருக்கேன், நன்றி.', tg: 'Naan nalla irukken, nandri.' };
       } else if (prompt.includes('Translate this English sentence')) {
         stats.meanings = (stats.meanings || 0) + 1;
-        out = { meaning: /market/.test(prompt.split('Sentence:')[1] || '') ? 'Neththu naan market-ku ponen.' : 'Vanakkam, naan Dinesh.' };
+        out = { meaning: /market/.test(prompt.split('Sentence:')[1] || '') ? 'Neththu naan market-ku ponen.' : 'Vanakkam, naan Dinesh.', words: [{ w: 'market', ta: 'சந்தை', tg: 'sandhai' }, { w: 'yesterday', ta: 'நேற்று', tg: 'neththu' }] };
       } else out = { ok: true };
       reply(res, { candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify(out) }] }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 10 } });
     });
@@ -156,7 +159,7 @@ function onLive(ws) {
       const text = JSON.stringify(m.clientContent.turns || '');
       stats.texts.push(text.slice(0, 160));
       if (speaking) { stopStream(); send({ serverContent: { interrupted: true } }); }
-      if (text.includes('call just connected')) tutorSays('Hi Dinesh! I am Priya. Repeat after me: Hi, I am Dinesh.');
+      if (text.includes('call just connected')) tutorSays('Hi Dinesh! I am Priya. How are you today?');
       else tutorSays('Okay. Let me say it slowly. Yesterday I went to the market.');
       return;
     }
@@ -166,7 +169,7 @@ function onLive(ws) {
       const text = String(ri.text);
       stats.texts.push(text.slice(0, 160));
       if (speaking) { stopStream(); send({ serverContent: { interrupted: true } }); }
-      if (text.includes('call just connected')) tutorSays('Hi Dinesh! I am Priya. Repeat after me: Hi, I am Dinesh.');
+      if (text.includes('call just connected')) tutorSays('Hi Dinesh! I am Priya. How are you today?');
       else tutorSays('Okay. Let me say it slowly. Yesterday I went to the market.');
       return;
     }

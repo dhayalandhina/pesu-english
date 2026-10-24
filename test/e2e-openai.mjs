@@ -112,9 +112,9 @@ try {
 
   await page.click('.hero [data-act="start"]');
   await page.waitForSelector('#call-av svg');
-  check('tutor greets first (OpenAI Realtime from the browser); repeat sentence shows', !!(await waitFor(async () => /Hi, I am Dinesh/.test(await page.textContent('#captions')), 15000)));
+  check('tutor greets with a question (OpenAI Realtime); screen shows question + sample answer', !!(await waitFor(async () => { const T = await page.textContent('#captions'); return /How are you today\?/.test(T) && /I am fine, thank you\./.test(T) && /Naan nalla irukken/.test(T); }, 20000)));
   check('speaking state while tutor audio plays', !!(await waitFor(async () => (await page.getAttribute('#status', 'data-s')) === 'speaking', 8000, 50)));
-  const shown = await waitFor(async () => { const t = await page.textContent('#captions'); return /Yesterday I went to the market\./.test(t) && !/Hi Dinesh!/.test(t) ? t : null; }, 25000);
+  const shown = await waitFor(async () => { const t = await page.textContent('#captions'); return /Yesterday I went to the market\./.test(t) && !/Hi Dinesh!/.test(t) && !/How are you today/.test(t) ? t : null; }, 25000);
   check('his voice turn answered; screen shows only the sentence to repeat', !!shown, shown || '');
   await page.screenshot({ path: `${OUT}/o02-call.png` });
   check('Tamil meaning (Thanglish) under the sentence', !!(await waitFor(async () => /Neththu naan market-ku ponen/.test(await page.textContent('#captions .meaning')), 15000)));
@@ -195,7 +195,7 @@ try {
   await p2.waitForSelector('.hero');
   await p2.click('.mode[data-act="start"][data-mode="free"]');
   await p2.waitForSelector('#ptt');
-  await waitFor(async () => /Hi, I am Dinesh/.test(await p2.textContent('#captions')), 15000);
+  await waitFor(async () => /How are you today/.test(await p2.textContent('#captions')), 15000);
   const before = (await stats(MOCK2)).audioChunks;
   await sleep(1500);
   check('PTT: no mic audio while the button is not held', (await stats(MOCK2)).audioChunks - before === 0);

@@ -87,7 +87,7 @@ try {
   await page.waitForSelector('.hero');
   await page.click('.hero [data-act="start"]');
   await page.waitForSelector('#call-av svg');
-  check('tutor greets first: device voice + the sentence to repeat on screen', !!(await waitFor(async () => /Hi, I am Dinesh/.test(await page.textContent('#captions')) && (await page.evaluate(() => window.__spoken.join(' '))).includes('Hi Dinesh'), 15000)));
+  check('tutor greets with a question: device voice + question + sample answer on screen', !!(await waitFor(async () => { const T = await page.textContent('#captions'); return /How are you today\?/.test(T) && /I am fine, thank you\./.test(T) && /Naan nalla irukken/.test(T) && (await page.evaluate(() => window.__spoken.join(' '))).includes('Hi Dinesh'); }, 20000)));
   check('"speaking" state while the device voice talks', !!(await waitFor(async () => (await page.getAttribute('#status', 'data-s')) === 'speaking', 8000, 50)));
   const heard = await waitFor(async () => (await stats()).transcriptions.length > 0, 25000);
   check('his speech -> voice detection -> Whisper', !!heard);

@@ -164,7 +164,10 @@ export class Call extends EventTarget {
         this.emit('fix', m.items || []);
         break;
       case 'meaning':
-        this.emit('meaning', { text: m.text, meaning: m.meaning });
+        this.emit('meaning', { text: m.text, meaning: m.meaning, words: m.words || [] });
+        break;
+      case 'hint':
+        this.emit('hint', m);
         break;
       case 'error':
         this.gotError = true;
@@ -284,6 +287,8 @@ export class Call extends EventTarget {
 
   // ask for the Tamil meaning of the sentence on screen
   meaning(text) { this.sendJSON({ t: 'meaning', text }); }
+  // the tutor asked a question: ask for its meaning and a sample answer
+  hint(question, context) { this.sendJSON({ t: 'hint', question, context }); }
 
   chip(kind, extra = {}) {
     if (!this.ready) return;
