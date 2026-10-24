@@ -1,0 +1,19 @@
+{
+  "name": "pesu-english",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pesu English: a local, video-call style spoken English tutor (voice in, voice out).",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs",
+    "serve": "node server.mjs --serve --no-idle"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@google/genai": "2.28.0",
+    "ws": "8.21.3"
+  }
+}
