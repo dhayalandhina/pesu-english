@@ -1,6 +1,6 @@
 // Phone edition: lets the app open fast and install like an app. Always tries the network first
 // (so updates arrive right away) and falls back to the saved copy when offline.
-const CACHE = 'pesu-english-20261024170115';
+const CACHE = 'pesu-english-20261024171328';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (event) => {

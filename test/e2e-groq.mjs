@@ -50,17 +50,23 @@ try {
     localStorage.setItem('pesu-base-url', m);
     // fake device voice: ~13 characters a second, with start/end events
     window.__spoken = [];
+    window.__cut = 0;   // sentences stopped half-way
     const q = [];
-    let busy = false;
+    let cur = null;
+    let timer = 0;
     const next = () => {
-      if (busy || !q.length) return;
-      busy = true;
-      const u = q.shift();
-      window.__spoken.push(u.text);
-      setTimeout(() => { if (u.onstart) u.onstart({}); setTimeout(() => { busy = false; if (u.onend) u.onend({}); next(); }, Math.max(300, u.text.length * 60)); }, 30);
+      if (cur || !q.length) return;
+      cur = q.shift();
+      const u = cur;
+      setTimeout(() => {
+        if (cur !== u) return;
+        window.__spoken.push(u.text);
+        if (u.onstart) u.onstart({});
+        timer = setTimeout(() => { cur = null; if (u.onend) u.onend({}); next(); }, Math.max(300, u.text.length * 60));
+      }, 30);
     };
     window.SpeechSynthesisUtterance = function (t) { this.text = String(t || ''); };
-    Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { getVoices: () => [], cancel: () => { q.length = 0; window.__cancels = (window.__cancels || 0) + 1; }, speak: (u) => { q.push(u); next(); } } });
+    Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { getVoices: () => [], cancel: () => { if (cur) window.__cut++; cur = null; clearTimeout(timer); q.length = 0; }, speak: (u) => { q.push(u); next(); } } });
   }, `http://127.0.0.1:${MOCK}`);
   const page = await ctx.newPage();
   const errors = [];
@@ -88,6 +94,10 @@ try {
   check('tutor answers his voice turn', !!(await waitFor(async () => (await page.evaluate(() => window.__spoken.join(' '))).includes('went to the market yesterday'), 15000)));
   check('correction card on the whiteboard', !!(await waitFor(async () => (await page.$$('#fixes .fix-card')).length > 0, 20000)));
   await page.screenshot({ path: `${OUT}/g01-call.png` });
+  // the fake mic keeps talking every few seconds (like his voice + the speaker's echo): the tutor must still finish every sentence
+  check('tutor finishes every sentence (mic not listening while she talks)', (await page.evaluate(() => window.__cut)) === 0, `cut=${await page.evaluate(() => window.__cut)} spoken=${await page.evaluate(() => window.__spoken.length)}`);
+  const caps = await page.$$eval('#captions .cap.tutor', (ps) => ps.map((p) => p.textContent));
+  check('captions show only what was spoken, one line per turn, no "…"', caps.length > 0 && caps.every((c) => !/…/.test(c)), caps.join(' | ').slice(0, 200));
   await page.click('[data-act="chip"][data-k="puriyala"]');
   // (the fake mic keeps talking, so the answer may cover both; what matters is that the tutor got the request)
   check('"Puriyala" request reaches the tutor and it answers', !!(await waitFor(async () => (await stats()).chats.some((x) => x.puriyala), 10000)) && !!(await waitFor(async () => (await page.evaluate(() => window.__spoken.length)) >= 3, 10000)));

@@ -31,6 +31,9 @@ export class Call extends EventTarget {
     this.summaryWaiters = [];
     this.thinkTimer = null;
     this._ampBuf = null;
+    this.sayCount = 0;
+    this.sayEndAt = -1e9;
+    this.turnPending = false;
   }
 
   emit(type, detail) { this.dispatchEvent(new CustomEvent(type, { detail })); }
@@ -147,6 +150,7 @@ export class Call extends EventTarget {
         break;
       case 'turn':
         if (this.playNode) this.playNode.port.postMessage({ type: 'end' });
+        if (this.sayCount) { this.turnPending = true; break; } // device voice still talking: end the caption line after it
         this.emit('turn');
         break;
       case 'interrupted':
@@ -181,6 +185,9 @@ export class Call extends EventTarget {
       if (this.pttActive) this.ws.send(pcm);
       return;
     }
+    // device voice (Groq): the mic's echo cancelling can't remove it, so the mic would hear the tutor and cut her off.
+    // Listen only after she finishes (plus a short room echo tail), like a walkie-talkie.
+    if (this.sayCount || now - this.sayEndAt < 700) return;
     if (this.settings.audioMode === 'speaker' && this.tutorPlaying) {
       this.loudFrames = rms > BARGE_RMS ? this.loudFrames + 1 : 0;
       if (!this.bargeIn && this.loudFrames >= 4) { this.bargeIn = true; this.clearPlayback(); }
@@ -200,23 +207,42 @@ export class Call extends EventTarget {
 
   clearPlayback() {
     if (this.playNode) this.playNode.port.postMessage({ type: 'clear' });
-    if (this.sayCount) { this.sayCount = 0; this.localSpeaking = false; try { window.speechSynthesis.cancel(); } catch { /* ignore */ } }
+    if (this.sayCount) {
+      this.sayCount = 0;
+      this.localSpeaking = false;
+      this.sayEndAt = performance.now();
+      try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
+    }
+    if (this.turnPending) { this.turnPending = false; this.emit('turn'); }
     this.tutorPlaying = false;
   }
 
-  // Groq calls: the tutor's answer is spoken by this device's own voice, one sentence at a time
+  pickVoice() {
+    let vs = [];
+    try { vs = window.speechSynthesis.getVoices() || []; } catch { /* ignore */ }
+    const en = vs.filter((x) => /^en/i.test(x.lang));
+    const want = this.settings.tutor === 'arun' ? /rishi|male|daniel|aaron|arthur|alex|fred/i : /veena|isha|female|samantha|karen|moira|tessa|zira/i;
+    const rank = (x) => (/en[-_]IN/i.test(x.lang) ? 4 : /en[-_](GB|US)/i.test(x.lang) ? 2 : 0) + (x.localService ? 2 : 0) + (want.test(x.name) ? 1 : 0);
+    return en.sort((a, b) => rank(b) - rank(a))[0] || null;
+  }
+
+  // Groq calls: the tutor's answer is spoken by this device's own voice, one sentence at a time;
+  // each sentence's caption appears when she starts saying it
   say(text) {
+    if (!text || this.ended) return;
     const ss = window.speechSynthesis;
-    if (!ss || !window.SpeechSynthesisUtterance || !text || this.ended) return;
+    if (!ss || !window.SpeechSynthesisUtterance) { this.emit('out', ` ${text}`); return; }
     const u = new SpeechSynthesisUtterance(text);
-    const vs = ss.getVoices() || [];
-    const v = vs.find((x) => /en[-_]IN/i.test(x.lang) && /google|natural|veena|rishi|neural/i.test(x.name)) || vs.find((x) => /en[-_]IN/i.test(x.lang)) || vs.find((x) => /en[-_](US|GB)/i.test(x.lang)) || null;
+    const v = this.pickVoice();
     if (v) u.voice = v;
     u.lang = v ? v.lang : 'en-IN';
     u.rate = this.settings.speed === 'slow' ? 0.85 : 0.95;
     this.sayCount = (this.sayCount || 0) + 1;
+    let shown = false;
+    const show = () => { if (!shown) { shown = true; this.emit('out', ` ${text}`); } };
     u.onstart = () => {
       if (!this.sayCount) return;
+      show();
       this.localSpeaking = true;
       this.tutorPlaying = true;
       clearTimeout(this.thinkTimer);
@@ -224,12 +250,15 @@ export class Call extends EventTarget {
     };
     const done = () => {
       if (!this.sayCount) return;
+      show();
       this.sayCount -= 1;
       if (this.sayCount) return;
       this.localSpeaking = false;
       this.tutorPlaying = false;
       this.bargeIn = false;
       this.loudFrames = 0;
+      this.sayEndAt = performance.now();
+      if (this.turnPending) { this.turnPending = false; this.emit('turn'); }
       if (!this.ended && this.state === 'speaking') this.setState('listening');
     };
     u.onend = done;

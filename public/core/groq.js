@@ -17,7 +17,9 @@ const VOICE_NOTES = `
 VOICE CALL NOTES (important)
 - Your words are read aloud by a text-to-speech voice, and you hear him only through speech recognition.
 - Write only what you would say out loud: plain short sentences. No emojis, no markdown, no lists, no stage directions.
-- Keep each reply to one to three short sentences unless he asks for an explanation.
+- Say only your own next turn, at most three short sentences, then stop and wait for him to answer.
+  Never write his lines, never answer for him, never carry on the conversation by yourself.
+- Don't use "..." or "…"; finish every sentence.
 - When you speak Tamil, write it in Thanglish (Tamil words in English letters, like "Neenga nalla pesureenga"), never in Tamil script: the voice can only read English letters.
 - You cannot hear his accent. If a recognized word looks odd for the context, it may be a pronunciation slip: gently say the right word and ask him to repeat it.`;
 
@@ -59,7 +61,7 @@ function forSpeech(text) {
 
 function sentences(text) {
   const out = [];
-  for (const part of text.match(/[^.!?]+[.!?]*["')]*\s*/g) || []) {
+  for (const part of text.match(/[^.!?]+[.!?]*["'\u2019\u201D)\]]*\s*/g) || []) {
     const s = part.trim();
     if (!s) continue;
     if (out.length && (out[out.length - 1].length < 25 || s.length < 8)) out[out.length - 1] += ` ${s}`;
@@ -154,7 +156,6 @@ export function makeGroq(apiKey, { baseUrl = GROQ_BASE } = {}) {
     const system = (c.instructions || '') + VOICE_NOTES;
     const history = [];
     let closed = false;
-    let speakEnd = 0;                    // when the device voice will have finished (estimate)
     let gen = 0;
     let abort = null;
     let queue = Promise.resolve();
@@ -175,17 +176,10 @@ export function makeGroq(apiKey, { baseUrl = GROQ_BASE } = {}) {
       closed = true;
       cb.onclose({ code: 4000, reason: [e.code, e.message].filter(Boolean).join(': '), fatal: true });
     };
-    const speaking = () => Date.now() < speakEnd;
-
+    // a new turn from him: drop an answer that is still being written (the call screen stops the voice itself)
     function stopTutor() {
       gen++;
       if (abort) { abort.abort(); abort = null; }
-      if (speaking()) {
-        speakEnd = 0;
-        emit({ serverContent: { interrupted: true } });
-        const last = history[history.length - 1];
-        if (last && last.role === 'assistant' && !last.content.endsWith('…')) last.content += ' …';
-      }
     }
 
     async function respond() {
@@ -203,14 +197,12 @@ export function makeGroq(apiKey, { baseUrl = GROQ_BASE } = {}) {
         return;
       }
       if (my !== gen || closed) return;
-      const text = forSpeech(res.text);
+      // one short turn: no "…" pauses, and never more than 4 sentences (models sometimes play both sides)
+      const parts = sentences(forSpeech(res.text).replace(/\s*(\.{3,}|\u2026)\s*/g, '. ').replace(/^[.\s]+/, '')).slice(0, 4);
+      const text = parts.join(' ').trim();
       if (!text) return;
       history.push({ role: 'assistant', content: text });
-      for (const s of sentences(text)) {
-        emit({ serverContent: { localSpeech: { text: s } } });
-        // ~13 characters a second at the voice's normal speed, plus a little gap
-        speakEnd = Math.max(speakEnd, Date.now() + 400) + (s.length / ((c.speed || 1) * 13)) * 1000 + 250;
-      }
+      for (const s of parts) emit({ serverContent: { localSpeech: { text: s } } });
       emit({ serverContent: { turnComplete: true } });
     }
 

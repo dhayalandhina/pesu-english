@@ -218,12 +218,11 @@ export class TutorBridge {
         this.out.audio(d.data);
       }
     }
-    // Groq: the answer is spoken by the device's own voice on the call screen
+    // Groq: the answer is spoken by the device's own voice; the call screen shows each sentence as it is spoken
     const ls = sc.localSpeech;
     if (ls && ls.text) {
       this.ensureTutor();
       this.curTutor.text += ` ${ls.text}`;
-      this.out.json({ t: 'out', text: ` ${ls.text}` });
       this.out.json({ t: 'say', text: ls.text });
     }
     const outT = sc.outputTranscription;
