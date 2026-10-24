@@ -173,6 +173,16 @@ input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--blue); }
 .cap.me .who { background: var(--green-soft); color: var(--green); }
 .cap.old { font-size: 16px; opacity: .6; }
 .cap-empty { color: var(--muted); font-size: 15px; }
+.captions { justify-content: center; }
+.captions .repeat { display: flex; align-items: center; gap: 12px; text-align: left; background: none; border: 0; padding: 4px 0 2px; margin: 0; color: var(--ink); font-family: var(--f-en); font-size: 27px; line-height: 1.3; font-weight: 600; cursor: pointer; overflow-wrap: anywhere; }
+.captions .repeat svg { width: 24px; height: 24px; color: var(--blue); flex: none; }
+.captions .repeat.new { animation: repeat-in .45s ease-out; }
+.captions .meaning { margin: 0; font-size: 18px; line-height: 1.4; color: var(--green); }
+.captions .meaning::before { content: "Artham: "; color: var(--muted); font-size: 14px; font-weight: 700; letter-spacing: .04em; }
+.captions .meaning.wait { color: var(--muted); font-size: 15px; }
+.captions .meaning.wait::before { content: ""; }
+@keyframes repeat-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .captions .repeat.new { animation: none; } }
 .err { border: 1px solid var(--red); background: var(--red-soft); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
 .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--sheet); border: 1px solid var(--line); border-radius: var(--r); padding: 10px; }
 .pills { display: flex; flex-wrap: wrap; gap: 8px; flex: 1 1 300px; }
@@ -261,6 +271,7 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
   .status { font-size: 13.5px; left: 10px; top: 10px; padding: 6px 11px; }
   .captions { min-height: 92px; padding: 10px 12px; }
   .cap { font-size: 18.5px; }
+  .captions .repeat { font-size: 22px; }
   .cap.old { font-size: 14.5px; }
   .controls { padding: 8px; gap: 8px; }
   .controls .round { order: 1; }

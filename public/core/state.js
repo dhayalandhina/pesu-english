@@ -12,9 +12,12 @@ export const PROVIDER_MODELS = {
   },
   groq: {
     // no voice-to-voice model on Groq: these are the "brain"; hearing is Whisper, speaking is the device's voice
-    liveModels: ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b'],
-    checkModels: ['openai/gpt-oss-20b', 'qwen/qwen3.8-27b'],
-    summaryModels: ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b'],
+    // each model has its own free daily budget, so the talk, the cards and the report use different ones;
+    // Qwen last: its free output limit is only 1000 tokens a minute
+    liveModels: ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b'],
+    checkModels: ['openai/gpt-oss-20b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-120b'],
+    summaryModels: ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b'],
+    meaningModels: ['openai/gpt-oss-120b', 'openai/gpt-oss-20b'], // Qwen's Tamil is too rough for this
   },
   openai: {
     // fallback is the older mini at the same price, never the 5x costlier full model

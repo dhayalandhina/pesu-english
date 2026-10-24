@@ -20,6 +20,7 @@ VOICE CALL NOTES (important)
 - Say only your own next turn, at most three short sentences, then stop and wait for him to answer.
   Never write his lines, never answer for him, never carry on the conversation by yourself.
 - Don't use "..." or "…"; finish every sentence.
+- When he should repeat something, write exactly that English sentence in double quotes, like: Repeat after me: "I live in Coimbatore." (his screen shows only the quoted sentence).
 - When you speak Tamil, write it in Thanglish (Tamil words in English letters, like "Neenga nalla pesureenga"), never in Tamil script: the voice can only read English letters.
 - You cannot hear his accent. If a recognized word looks odd for the context, it may be a pronunciation slip: gently say the right word and ask him to repeat it.`;
 
@@ -71,8 +72,8 @@ function sentences(text) {
 }
 
 // model-specific switches: keep thinking short (it's a live conversation) and out of the reply text
-function modelParams(model) {
-  if (/gpt-oss/.test(model)) return { reasoning_effort: 'low', include_reasoning: false };
+function modelParams(model, effort = 'low') {
+  if (/gpt-oss/.test(model)) return { reasoning_effort: effort, include_reasoning: false };
   if (/qwen/.test(model)) return { reasoning_effort: 'none' };
   return {};
 }
@@ -100,12 +101,13 @@ export function makeGroq(apiKey, { baseUrl = GROQ_BASE } = {}) {
     return j;
   }
 
-  async function chat(models, messages, { json = false, maxTokens = 700, signal } = {}) {
+  async function chat(models, messages, { json = false, maxTokens = 700, signal, effort = 'low' } = {}) {
     let lastErr;
     const now = Date.now();
     const ready = models.filter((m) => !(cooling.get(m) > now));
     for (const model of ready.length ? ready : models) {
-      const body = { model, messages, max_completion_tokens: maxTokens, ...modelParams(model) };
+      // free-tier output caps: Qwen allows 1000 output tokens a minute, so never ask for more than that
+      const body = { model, messages, max_completion_tokens: Math.min(maxTokens, /qwen/.test(model) ? 1000 : 4096), ...modelParams(model, effort) };
       if (json) body.response_format = { type: 'json_object' };
       try {
         let j;
@@ -292,7 +294,8 @@ export function makeGroq(apiKey, { baseUrl = GROQ_BASE } = {}) {
   }
 
   function genJSON(models, prompt, { maxOutputTokens = 2048 } = {}) {
-    return genJSONWith(async (model, jsonMode) => (await chat([model], [{ role: 'user', content: prompt }], { json: jsonMode, maxTokens: Math.max(1024, maxOutputTokens * 2) })).text, models, prompt);
+    // cards, meanings and the report are not live: let the model think a little more (the talk itself stays on 'low')
+    return genJSONWith(async (model, jsonMode) => (await chat([model], [{ role: 'user', content: prompt }], { json: jsonMode, maxTokens: Math.max(1024, maxOutputTokens * 2), effort: 'medium' })).text, models, prompt);
   }
 
   async function validate() {

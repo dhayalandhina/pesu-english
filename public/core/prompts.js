@@ -111,6 +111,7 @@ HOW TO TALK
 - Be patient. He may pause to think in the middle of a sentence, so wait for him. If he is clearly stuck, offer the first few words.
 - Praise real effort and progress, honestly and briefly. Never make him feel bad about a mistake.
 - Use his name sometimes, not in every turn.
+- When you want him to say a sentence after you, introduce it with "Repeat after me:" and then say just that sentence. His screen shows only that sentence.
 - If he asks whether you are a real person, tell him honestly that you are an AI English teacher inside his Pesu English app.
 
 TAMIL HELP
@@ -161,6 +162,19 @@ export function chipText(kind, msg, data) {
 }
 
 // ---------- text-model prompts ----------
+// meaning of the sentence on his screen, in the Tamil he speaks (written in English letters)
+export function meaningPrompt(sentence) {
+  return `You help a Tamil speaker from Coimbatore who is learning English. Translate this English sentence into simple spoken Tamil, written in English letters (Thanglish), the way people really talk. Keep English words Tamil speakers normally use (market, bus, office, phone, vegetables). Be exact about time words: yesterday = neththu, today = innaiku, tomorrow = naalaiku, now = ippo, every day = dhinamum. One short line, no Tamil script, no explanation.
+Examples (translate the meaning, don't copy these):
+"Yesterday I went to the market." -> "Neththu naan market-ku ponen."
+"I live in Coimbatore." -> "Naan Coimbatore-la irukken."
+"What did you buy there?" -> "Anga enna vaangineenga?"
+"My brother works in a shop." -> "En anna oru kadai-la velai paakkuraaru."
+"Nice to meet you." -> "Ungala sandhichadhula santhosham."
+Return only JSON: {"meaning": "..."}
+Sentence: "${clean(sentence).slice(0, 300)}"`;
+}
+
 export function checkPrompt(data, items) {
   const name = clean(data.profile?.name) || 'Dinesh';
   const list = items.map((it, i) => `${i + 1}. ${it.context ? `(teacher had said: "${clean(it.context).slice(0, 200)}") ` : ''}he said: "${clean(it.text).slice(0, 400)}"`).join('\n');

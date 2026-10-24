@@ -77,6 +77,9 @@ const server = http.createServer((req, res) => {
           lessonCovered: true,
           memoryNote: 'Practise past tense next time.',
         };
+      } else if (prompt.includes('Translate this English sentence')) {
+        stats.meanings = (stats.meanings || 0) + 1;
+        out = { meaning: /market/.test(prompt.split('Sentence:')[1] || '') ? 'Neththu naan market-ku ponen.' : 'Vanakkam, naan Dinesh.' };
       } else { stats.probes++; out = { ok: true }; }
       send(res, 200, { id: 'chatcmpl-x', object: 'chat.completion', model: j.model, choices: [{ index: 0, message: { role: 'assistant', content: JSON.stringify(out) }, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 10 } });
       return;
@@ -136,8 +139,8 @@ function onRealtime(ws, info) {
     if (resp) { sendEv({ type: 'error', event_id: id('ev'), error: { type: 'invalid_request_error', code: 'conversation_already_has_active_response', message: 'Conversation already has an active response in progress.' } }); return; }
     stats.responses++;
     conn.responded = true;
-    const text = lastWasVoice ? 'Oh, you went to the market yesterday? What did you buy there?'
-      : lastUserText.includes('call just connected') ? 'Hi Dinesh! I am Priya. How are you today?'
+    const text = lastWasVoice ? 'Oh, you went to the market yesterday? Repeat after me: “Yesterday I went to the market.”'
+      : lastUserText.includes('call just connected') ? 'Hi Dinesh! I am Priya. Repeat after me: “Hi, I am Dinesh.”'
         : 'Okay. Let me say it slowly. Yesterday I went to the market.';
     lastWasVoice = false;
     const rid = id('resp');

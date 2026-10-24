@@ -86,11 +86,12 @@ try {
   // ----- call straight from the phone page -----
   await page.click('.hero [data-act="start"]');
   await page.waitForSelector('#call-av svg');
-  check('tutor greets first (direct Live API from the browser)', !!(await waitFor(async () => /Hi Dinesh/.test(await page.textContent('#captions')), 15000)));
+  check('tutor greets first (direct Live API from the browser); repeat sentence shows', !!(await waitFor(async () => /Hi, I am Dinesh/.test(await page.textContent('#captions')), 15000)));
   check('speaking state while tutor audio plays', !!(await waitFor(async () => (await page.getAttribute('#status', 'data-s')) === 'speaking', 8000, 50)));
   await sleep(400);
   await page.screenshot({ path: `${OUT}/w03-call.png` });
-  check('learner speech reached the tutor and came back as caption', !!(await waitFor(async () => /Yesterday I go to market/.test(await page.textContent('#captions')), 25000)));
+  check('learner speech reached the tutor; its answer\'s repeat sentence shows', !!(await waitFor(async () => /Yesterday I went to the market/.test(await page.textContent('#captions')), 25000)));
+  check('Tamil meaning (Thanglish) under the sentence', !!(await waitFor(async () => /Neththu naan market-ku ponen/.test(await page.textContent('#captions .meaning')), 15000)));
   check('correction card on the whiteboard (browser -> text model)', !!(await waitFor(async () => (await page.$$('#fixes .fix-card')).length > 0, 25000)));
   await page.click('[data-act="chip"][data-k="puriyala"]');
   check('"Puriyala" sent to the tutor', !!(await waitFor(async () => (await mockStats()).texts.some((t) => t.includes("didn't understand")), 6000)));

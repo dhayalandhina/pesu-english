@@ -48,7 +48,8 @@ export async function genJSONWith(call, models, prompt) {
         return { model, data: parseJSONLoose(text) };
       } catch (e) {
         lastErr = e;
-        if (classifyError(e) === 'model') break; // next model
+        const kind = classifyError(e);
+        if (kind === 'model' || kind === 'quota') break; // next model (missing, or its per-minute/day limit is used up)
         if (jsonMode && (/mime|json|INVALID_ARGUMENT|\b400\b/i.test(errText(e)) || e?.message === 'invalid_json')) continue;
         throw e;
       }

@@ -74,6 +74,9 @@ const server = http.createServer((req, res) => {
           lessonCovered: true,
           memoryNote: 'He went to the market yesterday; practise past tense next time.',
         };
+      } else if (prompt.includes('Translate this English sentence')) {
+        stats.meanings = (stats.meanings || 0) + 1;
+        out = { meaning: /market/.test(prompt.split('Sentence:')[1] || '') ? 'Neththu naan market-ku ponen.' : 'Vanakkam, naan Dinesh.' };
       } else out = { ok: true };
       reply(res, { candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify(out) }] }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 10 } });
     });
@@ -134,7 +137,7 @@ function onLive(ws) {
     stats.utterances++;
     send({ serverContent: { inputTranscription: { text: 'Yesterday I go' } } });
     send({ serverContent: { inputTranscription: { text: ' to market' } } });
-    setTimeout(() => tutorSays('Oh, you went to the market yesterday? What did you buy there?'), 300);
+    setTimeout(() => tutorSays('Repeat after me: Yesterday I went to the market. Oh, you went there yesterday?'), 300);
   }
 
   ws.on('message', (raw) => {
@@ -153,7 +156,7 @@ function onLive(ws) {
       const text = JSON.stringify(m.clientContent.turns || '');
       stats.texts.push(text.slice(0, 160));
       if (speaking) { stopStream(); send({ serverContent: { interrupted: true } }); }
-      if (text.includes('call just connected')) tutorSays('Hi Dinesh! I am Priya. How are you today?');
+      if (text.includes('call just connected')) tutorSays('Hi Dinesh! I am Priya. Repeat after me: Hi, I am Dinesh.');
       else tutorSays('Okay. Let me say it slowly. Yesterday I went to the market.');
       return;
     }
@@ -163,7 +166,7 @@ function onLive(ws) {
       const text = String(ri.text);
       stats.texts.push(text.slice(0, 160));
       if (speaking) { stopStream(); send({ serverContent: { interrupted: true } }); }
-      if (text.includes('call just connected')) tutorSays('Hi Dinesh! I am Priya. How are you today?');
+      if (text.includes('call just connected')) tutorSays('Hi Dinesh! I am Priya. Repeat after me: Hi, I am Dinesh.');
       else tutorSays('Okay. Let me say it slowly. Yesterday I went to the market.');
       return;
     }

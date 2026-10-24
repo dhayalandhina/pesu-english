@@ -3,6 +3,7 @@ import { LESSONS, SCENES, TIPS, WEEKS } from './lessons.js';
 import { Avatar } from './avatar.js';
 import { Call } from './call.js';
 import { toThanglish } from './translit.js';
+import { repeatTarget } from './repeat.js';
 import { backend } from './backend.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -316,7 +317,7 @@ function viewCall(mode, day, scene) {
           <span class="nametag">${esc(t.title)} · English teacher</span>
           <div class="self" id="self"><span class="ring" id="self-ring"></span><span class="initial">${esc(name().slice(0, 1).toUpperCase())}</span><video id="self-cam" playsinline muted hidden></video></div>
         </div>
-        <div class="captions" id="captions" aria-live="polite"><p class="cap-empty">Teacher pesumbodhu inga ezhuththu-la varum.</p></div>
+        <div class="captions" id="captions" aria-live="polite"><p class="cap-empty">Teacher "repeat pannunga" nu sollura sentence mattum inga varum.</p></div>
         <div class="err" id="call-err" hidden></div>
         <div class="controls">
           ${ptt
@@ -405,20 +406,38 @@ function wireCall(c) {
   c.addEventListener('out', (e) => {
     if (!callCtx.tu) { callCtx.tu = { who: 'tutor', text: '' }; callCtx.lines.push(callCtx.tu); }
     callCtx.tu.text += e.detail;
-    drawCaptions();
+    // the screen shows only what he should say back
+    const t = repeatTarget(callCtx.tu.text);
+    if (t && t !== callCtx.target) {
+      callCtx.target = t;
+      callCtx.meaning = '';
+      drawCaptions();
+      if (call) call.meaning(t);
+    }
   });
   c.addEventListener('turn', () => { callCtx.tu = null; });
   c.addEventListener('interrupted', () => { if (callCtx.tu) { callCtx.tu.text += ' …'; callCtx.tu = null; drawCaptions(); } });
   c.addEventListener('fix', (e) => addFixes(e.detail));
+  c.addEventListener('meaning', (e) => {
+    const norm = (x) => String(x || '').replace(/\s+/g, ' ').trim();
+    if (!callCtx || norm(e.detail.text) !== norm(callCtx.target)) return;
+    callCtx.meaning = e.detail.meaning;
+    const m = $('#captions .meaning');
+    if (m) { m.textContent = showText(callCtx.meaning); m.classList.remove('wait'); }
+  });
   c.addEventListener('error', (e) => showCallError(e.detail.kind || 'unknown', e.detail.detail));
 }
 
+// Only the sentence to say back (big), not everything the tutor says. Tap it: the tutor says it again slowly.
 function drawCaptions() {
   const box = $('#captions');
-  if (!box || !callCtx) return;
-  const lines = callCtx.lines.slice(-4);
-  const t = tutor();
-  box.innerHTML = lines.map((l, i) => `<p class="cap ${l.who} ${i < lines.length - 2 ? 'old' : ''}"><span class="who">${l.who === 'me' ? esc(name()) : esc(t.name)}</span>${esc(showText(l.text).trim())}</p>`).join('');
+  if (!box || !callCtx || !callCtx.target) return;
+  const t = showText(callCtx.target);
+  const m = callCtx.meaning ? showText(callCtx.meaning) : '';
+  box.innerHTML = `<span class="label">Ippo neenga sollunga</span><button class="repeat" data-act="say" data-t="${esc(t)}" aria-label="${esc(tutor().name)} thirumba solla kelunga"><span>${esc(t)}</span>${IC.speaker}</button>
+    <p class="meaning ${m ? '' : 'wait'}">${m ? esc(m) : 'Artham varudhu…'}</p>`;
+  const b = box.querySelector('.repeat');
+  if (b) { b.classList.remove('new'); void b.offsetWidth; b.classList.add('new'); }
 }
 
 function addFixes(items) {

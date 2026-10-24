@@ -87,17 +87,18 @@ try {
   await page.waitForSelector('.hero');
   await page.click('.hero [data-act="start"]');
   await page.waitForSelector('#call-av svg');
-  check('tutor greets first: caption + device voice', !!(await waitFor(async () => /Hi Dinesh/.test(await page.textContent('#captions')) && (await page.evaluate(() => window.__spoken.join(' '))).includes('Hi Dinesh'), 15000)));
+  check('tutor greets first: device voice + the sentence to repeat on screen', !!(await waitFor(async () => /Hi, I am Dinesh/.test(await page.textContent('#captions')) && (await page.evaluate(() => window.__spoken.join(' '))).includes('Hi Dinesh'), 15000)));
   check('"speaking" state while the device voice talks', !!(await waitFor(async () => (await page.getAttribute('#status', 'data-s')) === 'speaking', 8000, 50)));
-  const heard = await waitFor(async () => /Yesterday I go to market/.test(await page.textContent('#captions')), 25000);
-  check('his speech -> voice detection -> Whisper -> caption', !!heard);
+  const heard = await waitFor(async () => (await stats()).transcriptions.length > 0, 25000);
+  check('his speech -> voice detection -> Whisper', !!heard);
   check('tutor answers his voice turn', !!(await waitFor(async () => (await page.evaluate(() => window.__spoken.join(' '))).includes('went to the market yesterday'), 15000)));
   check('correction card on the whiteboard', !!(await waitFor(async () => (await page.$$('#fixes .fix-card')).length > 0, 20000)));
   await page.screenshot({ path: `${OUT}/g01-call.png` });
   // the fake mic keeps talking every few seconds (like his voice + the speaker's echo): the tutor must still finish every sentence
   check('tutor finishes every sentence (mic not listening while she talks)', (await page.evaluate(() => window.__cut)) === 0, `cut=${await page.evaluate(() => window.__cut)} spoken=${await page.evaluate(() => window.__spoken.length)}`);
-  const caps = await page.$$eval('#captions .cap.tutor', (ps) => ps.map((p) => p.textContent));
-  check('captions show only what was spoken, one line per turn, no "…"', caps.length > 0 && caps.every((c) => !/…/.test(c)), caps.join(' | ').slice(0, 200));
+  const scr = await waitFor(async () => { const t = (await page.textContent('#captions .repeat')) || ''; return /Yesterday I went to the market\./.test(t) ? t : null; }, 15000);
+  check('screen shows only the sentence to repeat (not the whole talk)', !!scr && !(await page.$('#captions .cap')), scr || '');
+  check('Tamil meaning (Thanglish) under the sentence', !!(await waitFor(async () => /Neththu naan market-ku ponen/.test(await page.textContent('#captions .meaning')), 15000)));
   await page.click('[data-act="chip"][data-k="puriyala"]');
   // (the fake mic keeps talking, so the answer may cover both; what matters is that the tutor got the request)
   check('"Puriyala" request reaches the tutor and it answers', !!(await waitFor(async () => (await stats()).chats.some((x) => x.puriyala), 10000)) && !!(await waitFor(async () => (await page.evaluate(() => window.__spoken.length)) >= 3, 10000)));

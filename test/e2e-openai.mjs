@@ -112,16 +112,12 @@ try {
 
   await page.click('.hero [data-act="start"]');
   await page.waitForSelector('#call-av svg');
-  check('tutor greets first (OpenAI Realtime from the browser)', !!(await waitFor(async () => /Hi Dinesh/.test(await page.textContent('#captions')), 15000)));
+  check('tutor greets first (OpenAI Realtime from the browser); repeat sentence shows', !!(await waitFor(async () => /Hi, I am Dinesh/.test(await page.textContent('#captions')), 15000)));
   check('speaking state while tutor audio plays', !!(await waitFor(async () => (await page.getAttribute('#status', 'data-s')) === 'speaking', 8000, 50)));
-  const order = await waitFor(async () => {
-    const lines = await page.$$eval('#captions .cap', (ps) => ps.map((p) => `${p.classList.contains('me') ? 'me' : 'tutor'}:${p.textContent}`));
-    const i = lines.findIndex((l) => l.startsWith('me:') && /Yesterday I go to market/.test(l));
-    const j = lines.findIndex((l) => l.startsWith('tutor:') && /went to the market yesterday/.test(l));
-    return i >= 0 && j >= 0 ? { i, j, lines } : null;
-  }, 25000);
-  check('his speech -> caption (late transcription shown above the answer)', !!order && order.i < order.j, order ? order.lines.join(' | ') : 'no caption');
+  const shown = await waitFor(async () => { const t = await page.textContent('#captions'); return /Yesterday I went to the market\./.test(t) && !/Hi Dinesh!/.test(t) ? t : null; }, 25000);
+  check('his voice turn answered; screen shows only the sentence to repeat', !!shown, shown || '');
   await page.screenshot({ path: `${OUT}/o02-call.png` });
+  check('Tamil meaning (Thanglish) under the sentence', !!(await waitFor(async () => /Neththu naan market-ku ponen/.test(await page.textContent('#captions .meaning')), 15000)));
   check('correction card on the whiteboard (chat completions)', !!(await waitFor(async () => (await page.$$('#fixes .fix-card')).length > 0, 25000)));
   await page.click('[data-act="chip"][data-k="puriyala"]');
   check('"Puriyala" sent as a text turn', !!(await waitFor(async () => (await stats(MOCK1)).texts.some((t) => t.includes("didn't understand")), 6000)));
@@ -141,6 +137,10 @@ try {
   await sleep(500);
   await page.screenshot({ path: `${OUT}/o03-report.png`, fullPage: true });
   check('report card + Day 1 complete', /Day 1 complete/.test(await page.textContent('.stamp')));
+  const tr = await page.evaluate(() => { const k = Object.keys(localStorage).find((x) => x.startsWith('pesu-session-')); return k ? JSON.parse(localStorage.getItem(k)).transcript : []; });
+  const iMe = tr.findIndex((x) => x.who === 'me' && /Yesterday I go to market/.test(x.text));
+  const iTu = tr.findIndex((x, i) => i > iMe && x.who === 'tutor' && /went to the market yesterday/.test(x.text));
+  check('saved transcript keeps spoken order (his words before the answer, though they arrived later)', iMe >= 0 && iTu > iMe, tr.map((x) => x.who).join(','));
   const data = await page.evaluate(() => JSON.parse(localStorage.getItem('pesu-data-v1')));
   check('progress, memory, notebook saved in the phone', data.progress.daysDone['1'] && data.memory.facts.length > 0 && data.notebook.length > 0 && data.sessions.length === 1);
   await page.click('[data-act="go"][data-to="settings"]');
@@ -173,7 +173,7 @@ try {
   await p2.waitForSelector('#call-av svg');
   // (the fake mic starts talking right away in earphone mode, so the greeting itself may get interrupted)
   check('Mac: tutor speaks first (kickoff -> answer, server -> OpenAI)', !!(await waitFor(async () => { const s = await stats(MOCK2); return s.texts.some((t) => t.includes('call just connected')) && s.responses >= 1; }, 15000)));
-  check('Mac: his speech reached the tutor', !!(await waitFor(async () => /Yesterday I go to market/.test(await p2.textContent('#captions')), 25000)));
+  check('Mac: his speech reached the tutor', !!(await waitFor(async () => /Yesterday I went to the market/.test(await p2.textContent('#captions')), 25000)));
   check('Mac: correction card', !!(await waitFor(async () => (await p2.$$('#fixes .fix-card')).length > 0, 25000)));
   // the answer is usually fully received but still playing when he talks over it: the app cuts it and truncates
   const barge = await waitFor(async () => { const s = await stats(MOCK2); return s.truncates.length >= 1 ? s : null; }, 30000);
@@ -195,7 +195,7 @@ try {
   await p2.waitForSelector('.hero');
   await p2.click('.mode[data-act="start"][data-mode="free"]');
   await p2.waitForSelector('#ptt');
-  await waitFor(async () => /Hi Dinesh/.test(await p2.textContent('#captions')), 15000);
+  await waitFor(async () => /Hi, I am Dinesh/.test(await p2.textContent('#captions')), 15000);
   const before = (await stats(MOCK2)).audioChunks;
   await sleep(1500);
   check('PTT: no mic audio while the button is not held', (await stats(MOCK2)).audioChunks - before === 0);
@@ -207,7 +207,7 @@ try {
   await p2.mouse.up();
   const ptt = await waitFor(async () => { const s = await stats(MOCK2); return s.commits > c0 && s.clears > 0 ? s : null; }, 6000);
   check('PTT: voice detection off, clear on press, commit + answer on release', !!ptt && ptt.updates.at(-1)?.td === null, ptt ? `commits=${ptt.commits} clears=${ptt.clears}` : '');
-  check('PTT: tutor answers the held turn', !!(await waitFor(async () => /went to the market yesterday/.test(await p2.textContent('#captions')), 15000)));
+  check('PTT: tutor answers the held turn', !!(await waitFor(async () => /Yesterday I went to the market/.test(await p2.textContent('#captions')), 15000)));
   await p2.click('.hang');
   await p2.waitForSelector('.stamp, .hero', { timeout: 30000 });
 

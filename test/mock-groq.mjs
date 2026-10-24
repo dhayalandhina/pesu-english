@@ -40,12 +40,14 @@ http.createServer((req, res) => {
         content = JSON.stringify({ items: [{ n: 1, said: 'Yesterday I go to market', better: 'Yesterday I went to the market.', tip: "Neththu nadandhadhu-ku 'went' (past)", kind: 'grammar' }] });
       } else if (all.includes('end-of-call report')) {
         content = JSON.stringify({ summary: 'Indraiku past tense practice pannom.', didWell: ['Clear ah pesineenga'], fixThese: [{ said: 'Yesterday I go to market', better: 'Yesterday I went to the market.', tip: "Neththu = past, 'went'" }], newWords: [{ word: 'vegetables', meaning: 'kaaikari' }], nextTime: "'-ed' verbs practice.", facts: ['Goes to the market'], mistakePatterns: ['Present tense for past'], level: 'A1', lessonCovered: true, memoryNote: 'Past tense next time.' });
+      } else if (all.includes('Translate this English sentence')) {
+        content = JSON.stringify({ meaning: /market/.test(all.split('Sentence:')[1] || '') ? 'Neththu naan market-ku ponen.' : 'Vanakkam, naan Dinesh.' });
       } else {
         const last = (j.messages || []).filter((m) => m.role === 'user').at(-1)?.content || '';
         stats.texts.push(last.slice(0, 120));
-        content = last.includes('call just connected') ? 'Hi Dinesh! I am Priya. How are you today?'
+        content = last.includes('call just connected') ? 'Hi Dinesh! I am Priya. Repeat after me: "Hi, I am Dinesh."'
           : last.includes("didn't understand") ? 'Okay. Let me say it slowly. Yesterday I went to the market.'
-            : 'Oh, you went to the market yesterday? What did you buy there?';
+            : 'Oh, you went to the market yesterday? Repeat after me: "Yesterday I went to the market."';
       }
       send(res, 200, { id: 'x', object: 'chat.completion', model: j.model, choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }] });
       return;
